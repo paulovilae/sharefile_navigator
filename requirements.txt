@@ -1,0 +1,9 @@
+python-dotenv==1.0.0
+PyPDF2==3.0.1
+requests==2.31.0
+msal
+pyodbc
+fastapi
+uvicorn
+easyocr
+pymupdf
