@@ -2,11 +2,25 @@ import os
 from fastapi import FastAPI
 import pyodbc
 from dotenv import load_dotenv
-from backend.app.api import sharepoint
+from app.api import sharepoint
+from fastapi.middleware.cors import CORSMiddleware
+
+
 
 load_dotenv()
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],  # You can use ["*"] for development, but it's not safe for production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(sharepoint.router, prefix="/api/sharepoint")
 

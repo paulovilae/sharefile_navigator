@@ -1,25 +1,14 @@
-// jest-dom adds custom jest matchers for asserting on DOM nodes.
-// allows you to do things like:
-// expect(element).toHaveTextContent(/react/i)
-// learn more: https://github.com/testing-library/jest-dom
-import '@testing-library/jest-dom';
-
-function App() {
 import React from 'react';
 import {
   Box,
   List,
   ListItem,
   ListItemText,
-  ListItemIcon,
-  IconButton,
   Typography,
   CircularProgress,
   Button,
   Stack,
 } from '@mui/material';
-import FolderIcon from '@mui/icons-material/Folder';
-import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 
 const SharePointMUIFileExplorer = () => {
@@ -118,9 +107,6 @@ const SharePointMUIFileExplorer = () => {
   }
 
   return (
-
-
-
     <Box p={2}>
       <Stack direction="row" alignItems="center" spacing={2} mb={2}>
         <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={handleBackClick}>
@@ -130,18 +116,31 @@ const SharePointMUIFileExplorer = () => {
       </Stack>
       <List>
         {treeData.map((item) => (
-          <ListItem button key={item.id} onClick={() => handleItemClick(item)}>
-            <ListItemIcon>
-              {item.isFolder ? <FolderIcon /> : <InsertDriveFileIcon />}
-            </ListItemIcon>
-            <ListItemText primary={item.name} />
+          <ListItem 
+            button 
+            key={item.id} 
+            onClick={() => handleItemClick(item)}
+            sx={{
+              // Style to indicate folders differently from files (without icons)
+              fontWeight: item.isFolder ? 'bold' : 'normal',
+              // You can add other styling here if needed
+            }}
+          >
+            <ListItemText 
+              primary={item.name} 
+              // You can add secondary text here if needed
+              // secondary={item.isFolder ? 'Folder' : 'File'}
+            />
           </ListItem>
         ))}
+        {treeData.length === 0 && (
+          <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>
+            No files or folders found
+          </Typography>
+        )}
       </List>
     </Box>
   );
-
 };
-
 
 export default SharePointMUIFileExplorer;
