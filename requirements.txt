@@ -1,9 +1,10 @@
-python-dotenv==1.0.0
-PyPDF2==3.0.1
-requests==2.31.0
-msal
-pyodbc
-fastapi
-uvicorn
+# Python dependencies
+pytesseract
+# For GPU OCR
+# torch (if using GPU)
 easyocr
-pymupdf
+
+# System dependencies (must be installed separately):
+# - tesseract-ocr (required for pytesseract)
+#   On Ubuntu: sudo apt-get install tesseract-ocr
+#   On Windows: Download from https://github.com/tesseract-ocr/tesseract and add to PATH 

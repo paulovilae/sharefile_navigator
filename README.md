@@ -31,6 +31,15 @@ A modern web application for browsing, searching, and previewing files in ShareP
 ### OCR Processing (Python)
 - **OCR Pipeline:** (Pluggable) Python scripts for processing PDF files with OCR, ready for integration with the SharePoint backend.
 
+### Modular Block Workflow System (Backend)
+- **Block Categories:** Organize block templates into logical groups (e.g., File Managers, Processors).
+- **Block Templates:** Define reusable block types (e.g., PDF Converter, OCR, File Uploader) with config schema and UI hints.
+- **Workflows:** User-defined sequences of blocks, supporting complex document processing flows.
+- **Workflow Blocks:** Instances of block templates within a workflow, with per-workflow config and ordering.
+- **Block Executions:** Stores execution runs, logs, errors, timestamps, and results for each block in a workflow.
+- **Admin CRUD:** Full API for managing categories, templates, workflows, workflow blocks, and executions.
+- **Swagger UI Grouping:** All block-related endpoints are grouped in the API docs for easy navigation.
+
 ---
 
 ## Platform Structure
@@ -79,6 +88,36 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
+### Backend Setup with GPU (CUDA) Support
+
+1. **Install Python 3.11 or 3.12**
+   - Download from [python.org](https://www.python.org/downloads/).
+
+2. **Create a virtual environment (from the project root):**
+   ```sh
+   py -3.11 -m venv .venv-gpu
+   .venv-gpu\Scripts\activate  # On Windows
+   # or
+   source .venv-gpu/bin/activate  # On Mac/Linux
+   ```
+
+3. **Install backend dependencies with CUDA support:**
+   ```sh
+   pip install -r backend/requirements.txt --extra-index-url https://download.pytorch.org/whl/cu121
+   ```
+   - This will install torch and torchvision with CUDA 12.1 support for GPU acceleration.
+
+4. **Start the backend (from the project root):**
+   ```sh
+   uvicorn backend.app.main:app --reload
+   ```
+
+5. **Verify GPU is available in PyTorch:**
+   ```sh
+   python -c "import torch; print('CUDA available:', torch.cuda.is_available()); print('Device:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'N/A')"
+   ```
+   - You should see `CUDA available: True` and your GPU name.
+
 ### Frontend Setup
 
 ```bash
@@ -116,6 +155,43 @@ SHAREPOINT_SITE_NAME=YourSiteName
 - `GET /api/sharepoint/files` — List files (supports filtering and sorting)
 - `GET /api/sharepoint/file_content` — Download/preview file content
 - `GET /health` — Backend health check
+
+### Block Workflow API Endpoints
+
+All endpoints are available under `/api/blocks/` and grouped in the Swagger UI as follows:
+
+- **Block Categories**
+  - `GET /block_categories` — List categories
+  - `POST /block_category` — Create category
+  - `GET /block_category/{cat_id}` — Get category
+  - `PUT /block_category/{cat_id}` — Update category
+  - `DELETE /block_category/{cat_id}` — Delete category
+- **Block Templates**
+  - `GET /block_templates` — List templates
+  - `POST /block_template` — Create template
+  - `GET /block_template/{tpl_id}` — Get template
+  - `PUT /block_template/{tpl_id}` — Update template
+  - `DELETE /block_template/{tpl_id}` — Delete template
+- **Workflows**
+  - `GET /workflows` — List workflows
+  - `POST /workflow` — Create workflow
+  - `GET /workflow/{wf_id}` — Get workflow
+  - `PUT /workflow/{wf_id}` — Update workflow
+  - `DELETE /workflow/{wf_id}` — Delete workflow
+- **Workflow Blocks**
+  - `GET /workflow_blocks` — List workflow blocks
+  - `POST /workflow_block` — Create workflow block
+  - `GET /workflow_block/{wb_id}` — Get workflow block
+  - `PUT /workflow_block/{wb_id}` — Update workflow block
+  - `DELETE /workflow_block/{wb_id}` — Delete workflow block
+- **Block Executions**
+  - `GET /block_executions` — List executions
+  - `POST /block_execution` — Create execution
+  - `GET /block_execution/{exec_id}` — Get execution
+  - `PUT /block_execution/{exec_id}` — Update execution
+  - `DELETE /block_execution/{exec_id}` — Delete execution
+
+See the Swagger UI (`/docs`) for full details and interactive API testing.
 
 ---
 

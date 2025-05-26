@@ -118,9 +118,6 @@ const SharePointMUIFileExplorer = () => {
   }
 
   return (
-
-
-
     <Box p={2}>
       <Stack direction="row" alignItems="center" spacing={2} mb={2}>
         <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={handleBackClick}>
@@ -132,7 +129,7 @@ const SharePointMUIFileExplorer = () => {
         {treeData.map((item) => (
           <ListItem button key={item.id} onClick={() => handleItemClick(item)}>
             <ListItemIcon>
-              {item.isFolder ? <FolderIcon /> : <InsertDriveFileIcon />}
+              {item.isFolder ? <FolderIcon sx={{ color: '#51247A' }} /> : <InsertDriveFileIcon />}
             </ListItemIcon>
             <ListItemText primary={item.name} />
           </ListItem>
@@ -140,8 +137,6 @@ const SharePointMUIFileExplorer = () => {
       </List>
     </Box>
   );
-
 };
-
 
 export default SharePointMUIFileExplorer;
