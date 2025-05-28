@@ -24,6 +24,7 @@ app.add_middleware(
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "http://localhost:5173",
+        "http://localhost:5174",
     ],  # You can use ["*"] for development, but it's not safe for production
     allow_credentials=True,
     allow_methods=["*"],
@@ -58,4 +59,4 @@ def health_check():
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     print(f"GLOBAL EXCEPTION: {exc}", file=sys.stderr)
-    raise exc 
+    raise exc

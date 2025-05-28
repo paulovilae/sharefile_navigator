@@ -213,3 +213,22 @@ This project is licensed under the Creative Commons Attribution-NonCommercial 4.
 See the LICENSE file for full details.
 
 ---
+
+## Block Management and Deployment Approach
+
+This project uses an innovative hybrid approach for workflow blocks:
+
+- **Block templates are managed in the database and via the API/UI.**
+- **Deploying a block template** writes a hardcoded React component to `frontend/src/blocks/BlockName.jsx`.
+- **At runtime, blocks are imported statically** (hardcoded imports and mapping), ensuring fast, reliable execution with no runtime code evaluation or dynamic import complexity.
+- **The database is the source of truth** for block metadata, configuration, and management.
+- **The hardcoded React files are the "compiled"/"deployed" version** for fast, safe execution.
+- **Block management (CRUD, metadata, config, etc.) is always done via the API/database.**
+- **Block execution in the UI is always done via static imports and a mapping, for reliability and performance.**
+- **Deploying a block template** is the bridge: it takes the code from the database and writes it as a real React component, which is then imported and mapped in the workflow engine.
+- **No runtime code evaluation, no dynamic imports, no extra backend/database lookups at execution time.**
+- **When a block template is deleted, the corresponding `.jsx` file is also deleted** from `frontend/src/blocks/`.
+
+This approach combines the flexibility of dynamic block management with the performance and safety of static code execution.
+
+---

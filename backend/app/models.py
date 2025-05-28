@@ -60,6 +60,7 @@ class BlockCategory(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String, unique=True, nullable=False)
     description = Column(Text)
+    icon = Column(String, nullable=True)  # e.g., 'Folder', 'PictureAsPdf'
 
 class BlockTemplate(Base):
     __tablename__ = 'block_templates'
@@ -72,6 +73,7 @@ class BlockTemplate(Base):
     ui_schema = Column(JSON, nullable=True)
     component = Column(String, nullable=False)
     enabled = Column(Boolean, default=True)
+    jsx_code = Column(Text, nullable=True)
     category = relationship('BlockCategory')
 
 class Workflow(Base):
@@ -141,4 +143,24 @@ class BlockExecution(Base):
     error = Column(Text, nullable=True)
     result = Column(JSON, nullable=True)
     workflow_block = relationship('WorkflowBlock')
-    user = relationship('User') 
+    user = relationship('User')
+
+class SidebarMenuCategory(Base):
+    __tablename__ = 'sidebar_menu_categories'
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False, unique=True)
+    description = Column(Text)
+    menus = relationship('SidebarMenu', back_populates='category')
+
+class SidebarMenu(Base):
+    __tablename__ = 'sidebar_menus'
+    id = Column(Integer, primary_key=True)
+    label = Column(String, nullable=False)
+    icon = Column(String, nullable=False)
+    page_ref = Column(String, nullable=False)
+    category_id = Column(Integer, ForeignKey('sidebar_menu_categories.id'), nullable=True)
+    order = Column(Integer, default=0)
+    enabled = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    category = relationship('SidebarMenuCategory', back_populates='menus') 

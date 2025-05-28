@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Typography, Tabs, Tab, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
 import { ListBase, Datagrid, TextField, EditButton, CreateButton, TopToolbar } from 'react-admin';
+import SidebarMenuEditor from './admin/SidebarMenuEditor';
+import SidebarMenuCategoryEditor from './admin/SidebarMenuCategoryEditor';
+import SidebarMenuItemEditor from './admin/SidebarMenuItemEditor';
 
 const themeOptions = [
   { value: 'christus', label: 'CHRISTUS Health' },
@@ -10,20 +13,20 @@ const themeOptions = [
 const getStoredTheme = () => localStorage.getItem('theme') || 'christus';
 
 const GeneralSettingsTable = () => (
-  <ListBase resource="settings/settings">
-    <TopToolbar>
-      <CreateButton />
-    </TopToolbar>
-    <Datagrid>
-      <TextField source="id" />
-      <TextField source="key" />
-      <TextField source="value" />
-      <TextField source="category" />
-      <TextField source="description" />
-      <EditButton />
-    </Datagrid>
+    <ListBase resource="settings/settings">
+            <TopToolbar>
+                <CreateButton />
+            </TopToolbar>
+            <Datagrid>
+                <TextField source="id" />
+                <TextField source="key" />
+                <TextField source="value" />
+                <TextField source="category" />
+                <TextField source="description" />
+                <EditButton />
+            </Datagrid>
   </ListBase>
-);
+    );
 
 const SettingsPage = () => {
   const [tab, setTab] = useState(0);
@@ -40,6 +43,8 @@ const SettingsPage = () => {
         <Tab label="General" />
         <Tab label="Theme" />
         <Tab label="Localizations" />
+        <Tab label="Menu Categories" />
+        <Tab label="Menu Items" />
       </Tabs>
       {tab === 0 && (
         <Box>
@@ -74,8 +79,20 @@ const SettingsPage = () => {
           <Typography color="text.secondary">(Localization settings go here.)</Typography>
         </Box>
       )}
+      {tab === 3 && (
+        <Box>
+          <Typography variant="h6" sx={{ mb: 2 }}>Menu Categories</Typography>
+          <SidebarMenuCategoryEditor />
+        </Box>
+      )}
+      {tab === 4 && (
+        <Box>
+          <Typography variant="h6" sx={{ mb: 2 }}>Menu Items</Typography>
+          <SidebarMenuItemEditor />
+        </Box>
+      )}
     </Box>
-  );
+);
 };
 
 export default SettingsPage; 

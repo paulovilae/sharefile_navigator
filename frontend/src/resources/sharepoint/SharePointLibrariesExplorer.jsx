@@ -261,8 +261,8 @@ const FilesTable = ({ files, isItemSelected, handleSelectItem, fileStatuses, han
     {files.length > 0 && (
       <Box>
         <Divider sx={{ my: 3 }} />
-        <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
-          <thead>
+            <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                <thead>
             <tr style={{ background: theme.palette.mode === 'dark' ? theme.palette.background.paper : '#fafbfc' }}>
               <th style={{ width: 40, textAlign: 'center', color: theme.palette.mode === 'dark' ? theme.palette.text.primary : '#212121' }}>
                 <Checkbox
@@ -271,16 +271,16 @@ const FilesTable = ({ files, isItemSelected, handleSelectItem, fileStatuses, han
                   onChange={handleSelectAllFiles}
                   inputProps={{ 'aria-label': 'Select all files' }}
                 />
-              </th>
+                                </th>
               <th style={{ width: 40, color: theme.palette.mode === 'dark' ? theme.palette.text.primary : '#212121' }}></th>
               <th style={{ textAlign: 'left', color: theme.palette.mode === 'dark' ? theme.palette.text.primary : '#212121' }}>Name</th>
               <th style={{ textAlign: 'right', color: theme.palette.mode === 'dark' ? theme.palette.text.primary : '#212121' }}>Size</th>
               <th style={{ textAlign: 'left', color: theme.palette.mode === 'dark' ? theme.palette.text.primary : '#212121' }}>Created</th>
               <th style={{ textAlign: 'left', color: theme.palette.mode === 'dark' ? theme.palette.text.primary : '#212121' }}>Status</th>
               {showActions && <th style={{ textAlign: 'left', color: theme.palette.mode === 'dark' ? theme.palette.text.primary : '#212121' }}>Actions</th>}
-            </tr>
-          </thead>
-          <tbody>
+                    </tr>
+                </thead>
+                <tbody>
             {files.map((file, idx) => {
               const selected = isItemSelected(file, false);
               const rowBg = selected
@@ -364,36 +364,36 @@ const FilesTable = ({ files, isItemSelected, handleSelectItem, fileStatuses, han
                   </td>
                   {showActions && (
                     <td style={{ textAlign: 'left', padding: 4 }}>
-                      <IconButton onClick={e => {
-                        e.stopPropagation();
-                        const url = `/api/sharepoint/file_content?drive_id=${file.driveId || file.drive_id}&item_id=${file.id}&download=1`;
-                        const link = document.createElement('a');
-                        link.href = url;
-                        link.setAttribute('download', file.name);
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                      }} size="small" title="Download">
+                                        <IconButton onClick={e => {
+                                            e.stopPropagation();
+                                            const url = `/api/sharepoint/file_content?drive_id=${file.driveId || file.drive_id}&item_id=${file.id}&download=1`;
+                                            const link = document.createElement('a');
+                                            link.href = url;
+                                            link.setAttribute('download', file.name);
+                                            document.body.appendChild(link);
+                                            link.click();
+                                            document.body.removeChild(link);
+                                        }} size="small" title="Download">
                         <GetAppIcon fontSize="small" sx={{ color: selected ? '#fff !important' : theme.palette.primary.main + ' !important', opacity: 1 }} />
-                      </IconButton>
-                      {isPreviewable(file.name) && (
-                        <IconButton onClick={e => {
-                          e.stopPropagation();
-                          window.open(`/api/sharepoint/file_content?drive_id=${file.driveId || file.drive_id}&item_id=${file.id}&preview=true`, '_blank');
-                        }} size="small" title="Preview">
+                                        </IconButton>
+                                        {isPreviewable(file.name) && (
+                                            <IconButton onClick={e => {
+                                                e.stopPropagation();
+                                                window.open(`/api/sharepoint/file_content?drive_id=${file.driveId || file.drive_id}&item_id=${file.id}&preview=true`, '_blank');
+                                            }} size="small" title="Preview">
                           <VisibilityIcon fontSize="small" sx={{ color: selected ? '#fff !important' : theme.palette.primary.main + ' !important', opacity: 1 }} />
-                        </IconButton>
-                      )}
+                                            </IconButton>
+                                        )}
                     </td>
                   )}
-                </tr>
+                        </tr>
               );
             })}
-          </tbody>
-        </table>
-      </Box>
-    )}
-  </Box>
+                </tbody>
+            </table>
+                        </Box>
+                    )}
+                        </Box>
 );
 
 // --- Modular FoldersGrid component ---
@@ -461,18 +461,18 @@ const FoldersGrid = ({ folders, isItemSelected, handleSelectItem, handleFolderCl
                     <IconButton onClick={() => handleFolderClick(folder)} sx={{ p: 0, bgcolor: 'transparent', '&:hover': { bgcolor: 'transparent' } }} aria-label={`Open folder ${folder.name}`}>
                       <FolderIcon sx={{ fontSize: 48, color: iconColor }} />
                     </IconButton>
-                  </Box>
+                        </Box>
                   <Typography variant="subtitle1" sx={{ fontWeight: 700, textAlign: 'center', width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'normal', fontSize: 18, lineHeight: 1.2, mt: 1, color: textColor }}>
                     {folder.name}
                   </Typography>
                 </Card>
-              </Grid>
+                                        </Grid>
             );
           })}
-        </Grid>
+                                        </Grid>
       )}
-    </Box>
-  );
+        </Box>
+    );
 };
 
 // --- BlockContent: renders the correct block for each workflow step ---
@@ -514,17 +514,17 @@ const LibrariesGrid = ({ onCardClick }) => {
   }, []);
   if (loading) return <Typography>Loading libraries...</Typography>;
   if (!libraries.length) return <Typography color="text.secondary">No SharePoint libraries found.</Typography>;
-  return (
-    <CardGrid
+    return (
+        <CardGrid
       data={libraries}
-      onCardClick={onCardClick}
+            onCardClick={onCardClick}
       icon={<LibraryBooksIcon />}
       cardHeight={140}
       iconSize={40}
       fontSize="subtitle1"
       cardWidth={200}
-    />
-  );
+        />
+    );
 };
 
 // --- DragHandle: draggable handle for sortable blocks ---
@@ -870,7 +870,7 @@ const SharePointLibrariesExplorer = (props) => {
     );
 
     return (
-        <List {...props} actions={<ListActions toggleView={toggleView} isGrid={isGrid} onAddBlock={handleAddBlock} canAddBlock={canAddBlock} />}
+        <List {...props}
             sx={{
                 '& .MuiTypography-h5, & .MuiTypography-h6': {
                     color: theme.palette.mode === 'dark' ? theme.palette.text.primary : theme.palette.primary.main,
@@ -885,6 +885,17 @@ const SharePointLibrariesExplorer = (props) => {
             }}
         >
             <Box sx={{ bgcolor: theme.palette.mode === 'dark' ? theme.palette.background.default : theme.palette.grey[100], minHeight: '100vh', p: 0 }}>
+                {/* Custom action bar above block flow */}
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 2, mb: 2 }}>
+                  <Button startIcon={<AddIcon />} color="primary" variant="text" onClick={() => {/* open add block dialog or menu */}} sx={{ fontWeight: 600, fontSize: 16 }}>
+                    Create
+                  </Button>
+                  {/* Uncomment if you want Export */}
+                  {/* <Button startIcon={<GetAppIcon />} color="primary" variant="text" sx={{ fontWeight: 600, fontSize: 16 }}>
+                    Export
+                  </Button> */}
+                </Box>
+                {/* Then render the block flow as before */}
                 {renderBlockFlow()}
             </Box>
         </List>

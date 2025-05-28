@@ -57,6 +57,7 @@ class DocumentRead(DocumentBase):
 class BlockCategoryBase(BaseModel):
     name: str
     description: Optional[str] = None
+    icon: Optional[str] = None  # e.g., 'Folder', 'PictureAsPdf'
 
 class BlockCategoryCreate(BlockCategoryBase):
     pass
@@ -75,6 +76,7 @@ class BlockTemplateBase(BaseModel):
     ui_schema: Optional[Any] = None
     component: str
     enabled: Optional[bool] = True
+    jsx_code: Optional[str] = None
 
 class BlockTemplateCreate(BlockTemplateBase):
     pass
@@ -229,4 +231,35 @@ class SharePointFileBase(BaseModel):
     createdBy: Optional[Any]
     lastModifiedBy: Optional[Any]
 class SharePointFileRead(SharePointFileBase):
-    pass 
+    pass
+
+class SidebarMenuCategoryBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+class SidebarMenuCategoryCreate(SidebarMenuCategoryBase):
+    pass
+
+class SidebarMenuCategoryRead(SidebarMenuCategoryBase):
+    id: int
+    class Config:
+        orm_mode = True
+
+class SidebarMenuBase(BaseModel):
+    label: str
+    icon: str
+    page_ref: str
+    category_id: Optional[int] = None
+    order: int = 0
+    enabled: bool = True
+
+class SidebarMenuCreate(SidebarMenuBase):
+    pass
+
+class SidebarMenuRead(SidebarMenuBase):
+    id: int
+    created_at: Optional[datetime.datetime]
+    updated_at: Optional[datetime.datetime]
+    category: Optional[SidebarMenuCategoryRead]
+    class Config:
+        orm_mode = True 
