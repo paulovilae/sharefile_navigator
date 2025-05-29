@@ -9,6 +9,24 @@ import { useTheme } from '@mui/material/styles';
 import SettingsApplicationsIcon from '@mui/icons-material/SettingsApplications';
 import MenuIcon from '@mui/icons-material/Menu';
 import PaletteIcon from '@mui/icons-material/Palette';
+import HomeIcon from '@mui/icons-material/Home';
+import DashboardIcon from '@mui/icons-material/Dashboard';
+import ListIcon from '@mui/icons-material/List';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
+import AddIcon from '@mui/icons-material/Add';
+
+const iconComponentMap = {
+    Folder: FolderIcon,
+    Category: CategoryIcon,
+    Settings: SettingsIcon,
+    Home: HomeIcon,
+    Dashboard: DashboardIcon,
+    List: ListIcon,
+    Edit: EditIcon,
+    Delete: DeleteIcon,
+    Add: AddIcon,
+};
 
 const api = async (url, method = 'GET', body) => {
   const res = await fetch(url, {
@@ -38,11 +56,12 @@ const MyMenu = (props) => {
     const renderMenuItems = () => {
         const items = [];
         menuItems.forEach(item => {
+            const IconComponent = iconComponentMap[item.icon] || null;
             items.push({
                 type: 'link',
                 label: item.label,
                 to: item.page_ref,
-                //icon: item.icon ? <img src={item.icon} alt={item.label} style={{ width: 20, height: 20, color: getIconColor() }} /> : null,
+                icon: IconComponent ? <IconComponent style={{ width: 20, height: 20, color: getIconColor() }} /> : null,
             });
         });
         return items;

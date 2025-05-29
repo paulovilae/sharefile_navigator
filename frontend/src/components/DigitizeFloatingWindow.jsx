@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { Rnd } from 'react-rnd';
-import DigitizationCanvas from './DigitizationCanvas';
 import { IconButton } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
+
 
 export default function DigitizeFloatingWindow({ open, onClose, file }) {
   const [isFull, setIsFull] = useState(false);
@@ -38,9 +38,6 @@ export default function DigitizeFloatingWindow({ open, onClose, file }) {
         </IconButton>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100% - 40px)', background: '#fafafa', flex: 1 }}>
-        <div style={{ flex: 1, minHeight: 0 }}>
-          <DigitizationCanvas />
-        </div>
         {/* Add template controls, run button, result panel here */}
       </div>
     </Rnd>

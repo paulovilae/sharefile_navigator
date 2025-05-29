@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Typography, Tabs, Tab, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
-import { ListBase, Datagrid, TextField, EditButton, CreateButton, TopToolbar } from 'react-admin';
 import SidebarMenuEditor from './admin/SidebarMenuEditor';
 import SidebarMenuCategoryEditor from './admin/SidebarMenuCategoryEditor';
 import SidebarMenuItemEditor from './admin/SidebarMenuItemEditor';
+import GenericFileEditor from './components/GenericFileEditor';
 
 const themeOptions = [
   { value: 'christus', label: 'CHRISTUS Health' },
@@ -12,30 +12,58 @@ const themeOptions = [
 
 const getStoredTheme = () => localStorage.getItem('theme') || 'christus';
 
-const GeneralSettingsTable = () => (
-    <ListBase resource="settings/settings">
-            <TopToolbar>
-                <CreateButton />
-            </TopToolbar>
-            <Datagrid>
-                <TextField source="id" />
-                <TextField source="key" />
-                <TextField source="value" />
-                <TextField source="category" />
-                <TextField source="description" />
-                <EditButton />
-            </Datagrid>
-  </ListBase>
-    );
+const api = async (url, method = 'GET', body) => {
+  const res = await fetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  return res.json();
+};
 
 const SettingsPage = () => {
   const [tab, setTab] = useState(0);
   const [theme, setTheme] = useState(getStoredTheme());
+  const [generalSettings, setGeneralSettings] = useState([]);
 
   useEffect(() => {
     localStorage.setItem('theme', theme);
     window.dispatchEvent(new Event('themechange'));
   }, [theme]);
+
+  useEffect(() => {
+    const fetchGeneralSettings = async () => {
+      const settings = await api('/api/settings/settings');
+      setGeneralSettings(Array.isArray(settings) ? settings : []);
+    };
+    fetchGeneralSettings();
+  }, []);
+
+  const handleAddSetting = async (newSetting) => {
+    await api('/api/settings/settings', 'POST', newSetting);
+    const settings = await api('/api/settings/settings');
+    setGeneralSettings(Array.isArray(settings) ? settings : []);
+  };
+
+  const handleUpdateSetting = async (updatedSetting) => {
+    await api(`/api/settings/settings/${updatedSetting.id}`, 'PUT', updatedSetting);
+    const settings = await api('/api/settings/settings');
+    setGeneralSettings(Array.isArray(settings) ? settings : []);
+  };
+
+  const handleRemoveSetting = async (settingId) => {
+    await api(`/api/settings/settings/${settingId}`, 'DELETE');
+    const settings = await api('/api/settings/settings');
+    setGeneralSettings(Array.isArray(settings) ? settings : []);
+  };
+
+  const generalSettingsColumns = [
+    { field: 'id', title: 'ID', dialogVisible: false },
+    { field: 'key', title: 'Key' },
+    { field: 'value', title: 'Value' },
+    { field: 'category', title: 'Category' },
+    { field: 'description', title: 'Description' },
+  ];
 
   return (
     <Box sx={{ p: 3 }}>
@@ -49,7 +77,13 @@ const SettingsPage = () => {
       {tab === 0 && (
         <Box>
           <Typography variant="h6" sx={{ mb: 2 }}>General Settings</Typography>
-          <GeneralSettingsTable />
+          <GenericFileEditor
+            data={generalSettings}
+            columns={generalSettingsColumns}
+            onAddRow={handleAddSetting}
+            onUpdateRow={handleUpdateSetting}
+            onRemoveRow={handleRemoveSetting}
+          />
         </Box>
       )}
       {tab === 1 && (

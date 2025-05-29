@@ -11,7 +11,7 @@ class RoleCreate(RoleBase):
 class RoleRead(RoleBase):
     id: int
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # Team
 class TeamBase(BaseModel):
@@ -22,7 +22,7 @@ class TeamCreate(TeamBase):
 class TeamRead(TeamBase):
     id: int
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # User
 class UserBase(BaseModel):
@@ -37,7 +37,7 @@ class UserRead(UserBase):
     created_at: Optional[datetime.datetime]
     updated_at: Optional[datetime.datetime]
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # Document
 class DocumentBase(BaseModel):
@@ -51,7 +51,7 @@ class DocumentRead(DocumentBase):
     created_at: Optional[datetime.datetime]
     updated_at: Optional[datetime.datetime]
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # --- Block Workflow Schemas ---
 class BlockCategoryBase(BaseModel):
@@ -65,7 +65,7 @@ class BlockCategoryCreate(BlockCategoryBase):
 class BlockCategoryRead(BlockCategoryBase):
     id: int
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class BlockTemplateBase(BaseModel):
     category_id: int
@@ -85,7 +85,7 @@ class BlockTemplateRead(BlockTemplateBase):
     id: int
     category: Optional[BlockCategoryRead]
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class WorkflowBase(BaseModel):
     name: str
@@ -101,7 +101,7 @@ class WorkflowRead(WorkflowBase):
     updated_at: Optional[datetime.datetime]
     user: Optional['UserRead']
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class WorkflowBlockBase(BaseModel):
     workflow_id: int
@@ -119,7 +119,7 @@ class WorkflowBlockRead(WorkflowBlockBase):
     workflow: Optional[WorkflowRead]
     block_template: Optional[BlockTemplateRead]
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class BlockExecutionBase(BaseModel):
     workflow_block_id: int
@@ -139,7 +139,7 @@ class BlockExecutionRead(BlockExecutionBase):
     workflow_block: Optional[WorkflowBlockRead]
     user: Optional[UserRead]
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # AuditLog
 class AuditLogBase(BaseModel):
@@ -153,7 +153,7 @@ class AuditLogRead(AuditLogBase):
     id: int
     timestamp: Optional[datetime.datetime]
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # ApiToken
 class ApiTokenBase(BaseModel):
@@ -165,7 +165,7 @@ class ApiTokenRead(ApiTokenBase):
     id: int
     created_at: Optional[datetime.datetime]
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # Setting
 class SettingBase(BaseModel):
@@ -178,7 +178,7 @@ class SettingCreate(SettingBase):
 class SettingRead(SettingBase):
     id: int
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # Localization
 class LocalizationBase(BaseModel):
@@ -190,7 +190,7 @@ class LocalizationCreate(LocalizationBase):
 class LocalizationRead(LocalizationBase):
     id: int
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # Permission
 class PermissionBase(BaseModel):
@@ -201,7 +201,7 @@ class PermissionCreate(PermissionBase):
 class PermissionRead(PermissionBase):
     id: int
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # OcrResult
 class OcrResultBase(BaseModel):
@@ -219,7 +219,7 @@ class OcrResultRead(OcrResultBase):
     created_at: Optional[datetime.datetime]
     updated_at: Optional[datetime.datetime]
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # SharePoint (basic example)
 class SharePointFileBase(BaseModel):
@@ -243,7 +243,7 @@ class SidebarMenuCategoryCreate(SidebarMenuCategoryBase):
 class SidebarMenuCategoryRead(SidebarMenuCategoryBase):
     id: int
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class SidebarMenuBase(BaseModel):
     label: str
@@ -262,4 +262,4 @@ class SidebarMenuRead(SidebarMenuBase):
     updated_at: Optional[datetime.datetime]
     category: Optional[SidebarMenuCategoryRead]
     class Config:
-        orm_mode = True 
+        from_attributes = True 

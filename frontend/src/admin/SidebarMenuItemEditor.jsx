@@ -6,11 +6,19 @@ import DownloadIcon from '@mui/icons-material/Download';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import GenericFileEditor from '../components/GenericFileEditor';
-import * as Icons from '@mui/icons-material'; // Import all icons
 import {
   Search as SearchIcon,
   FilterList as FilterListIcon,
-  HelpOutline as HelpOutlineIcon // Import a fallback icon
+  HelpOutline as HelpOutlineIcon, // Import fallback icon
+  Folder, // Explicitly import used icons
+  Category,
+  Settings,
+  Home,
+  Dashboard,
+  List,
+  Edit,
+  Delete,
+  Add,
 } from '@mui/icons-material';
 
 const api = async (url, method = 'GET', body) => {
@@ -225,6 +233,7 @@ export default function SidebarMenuItemEditor() {
       }))
     );
     console.log('Menus state updated:', menus);
+    console.log('selectedColumns:', selectedColumns);
     setCategories(Array.isArray(catsResp) ? catsResp : []);
   };
   useEffect(() => {
@@ -251,19 +260,21 @@ export default function SidebarMenuItemEditor() {
     }
   };
 
+  // Mapping of icon names to components
+  const iconComponentMap = {
+    Folder: Folder,
+    Category: Category,
+    Settings: Settings,
+    Home: Home,
+    Dashboard: Dashboard,
+    List: List,
+    Edit: Edit,
+    Delete: Delete,
+    Add: Add,
+  };
+
   // Example Material Icon names (can be expanded)
-  const iconOptions = [
-    'Folder',
-    'Category',
-    'Settings',
-    'Workflow',
-    'Home',
-    'Dashboard',
-    'List',
-    'Edit',
-    'Delete',
-    'Add',
-  ];
+  const iconOptions = Object.keys(iconComponentMap);
 
   const menuItemColumns = [
     { field: 'id', title: 'ID' },
@@ -271,9 +282,11 @@ export default function SidebarMenuItemEditor() {
       field: 'icon',
       title: 'Icon',
       render: (row) => {
-        const IconComponent = Icons[row.icon];
-        // Check if IconComponent is a function before rendering
-        return typeof IconComponent === 'function' ? <IconComponent /> : <HelpOutlineIcon />; // Render icon or fallback
+        console.log("Rendering icon column for row:", row);
+        const IconComponent = iconComponentMap[row.icon];
+        console.log("row.icon:", row.icon, "IconComponent:", IconComponent);
+        // Check if IconComponent exists and is a valid React component
+        return IconComponent && IconComponent.$$typeof ? <IconComponent size="small" color="primary" /> : <HelpOutlineIcon size="small" color="primary" />; // Render icon or fallback with consistent styling
       },
       dialogRender: ({ value, onChange, label, name }) => (
         <FormControl fullWidth margin="dense">
@@ -285,11 +298,11 @@ export default function SidebarMenuItemEditor() {
             onChange={(e) => onChange(e.target.value)}
           >
             {iconOptions.map((iconName) => {
-              const IconComponent = Icons[iconName];
+              const IconComponent = iconComponentMap[iconName];
               return (
                 <MenuItem key={iconName} value={iconName}>
                   <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    {typeof IconComponent === 'function' ? <IconComponent /> : <HelpOutlineIcon />}
+                    {IconComponent && IconComponent.$$typeof ? <IconComponent size="small" color="primary" /> : <HelpOutlineIcon size="small" color="primary" />} {/* Corrected check here */}
                     <Typography sx={{ ml: 1 }}>{iconName}</Typography>
                   </Box>
                 </MenuItem>
@@ -302,7 +315,7 @@ export default function SidebarMenuItemEditor() {
     { field: 'label', title: 'Label' },
     { field: 'page_ref', title: 'Page Ref' },
     { field: 'category_id', title: 'Category' },
-    { field: 'enabled', title: 'Enabled', render: (row) => <Checkbox checked={row.enabled} /> }, // Correct mapping and render as Checkbox
+    { field: 'enabled', title: 'Enabled', render: (row) => <Checkbox checked={row.enabled} size="small" color="primary" /> }, // Correct mapping and render as Checkbox with consistent styling
     { field: 'order', title: 'Order', hidden: true, dialogVisible: false },   // Correct mapping and hide by default, hide in dialog
   ];
 

@@ -202,7 +202,7 @@ const christusTheme = createTheme({
     h5: { fontFamily: 'Montserrat, Arial, sans-serif' },
     h6: { fontFamily: 'Montserrat, Arial, sans-serif' },
   },
-  logo: 'https://christussinergia.com/info/Colaboradores/LogoCSS_Intranet.png',
+  logo: '/LogoCSS_Intranet.png',
 });
 
 /*

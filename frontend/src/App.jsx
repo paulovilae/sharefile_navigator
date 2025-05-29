@@ -2,16 +2,15 @@ import * as React from "react";
 import { Admin, Resource, CustomRoutes } from "react-admin";
 import dataProvider from "./dataProvider";
 import SettingsPage from "./SettingsPage";
+import Space from "./Space"; // Added import for Space component
 // import DashboardPage from "./DashboardPage"; // Removed, file deleted
 import FolderIcon from '@mui/icons-material/Folder';
 import MyLayout from "./admin/MyLayout";
 import { LocalizationList, LocalizationEdit, LocalizationCreate } from './resources/localizations';
-import SharePointLibrariesExplorer from './resources/sharepoint/SharePointLibrariesExplorer';
 import christusTheme, { christusDarkTheme } from './theme/christusTheme';
 import defaultTheme from './theme/defaultTheme';
 import defaultDarkTheme from './theme/defaultDarkTheme';
 import BlocksPage from './resources/BlocksPage';
-import WorkflowEngine from './resources/sharepoint/WorkflowEngine';
 import SidebarMenuEditor from './admin/SidebarMenuEditor';
 import { Route } from 'react-router-dom';
 
@@ -28,14 +27,53 @@ function getSelectedTheme() {
   return localStorage.getItem('theme') || 'christus';
 }
 
+// Function to load state from localStorage
+const loadStateFromLocalStorage = () => {
+  const selectedLibrary = JSON.parse(localStorage.getItem('selectedLibrary'));
+  const currentFolder = JSON.parse(localStorage.getItem('currentFolder'));
+  const selectedItems = JSON.parse(localStorage.getItem('selectedItems'));
+  console.log('Loading state from localStorage:', { selectedLibrary, currentFolder, selectedItems });
+  return { selectedLibrary, currentFolder, selectedItems };
+};
+
+// Function to save state to localStorage
+const saveStateToLocalStorage = (selectedLibrary, currentFolder, selectedItems) => {
+  console.log('Saving state to localStorage:', { selectedLibrary, currentFolder, selectedItems });
+  localStorage.setItem('selectedLibrary', JSON.stringify(selectedLibrary));
+  localStorage.setItem('currentFolder', JSON.stringify(currentFolder));
+  localStorage.setItem('selectedItems', JSON.stringify(selectedItems));
+};
+
 export default function App() {
   const [themeKey, setThemeKey] = React.useState(getSelectedTheme());
+  const [selectedLibrary, setSelectedLibrary] = React.useState(null);
+  const [currentFolder, setCurrentFolder] = React.useState(null);
+  const [selectedItems, setSelectedItems] = React.useState([]);
 
   React.useEffect(() => {
-    const handler = () => setThemeKey(getSelectedTheme());
-    window.addEventListener('themechange', handler);
-    return () => window.removeEventListener('themechange', handler);
-  }, []);
+      const { selectedLibrary: storedSelectedLibrary, currentFolder: storedCurrentFolder, selectedItems: storedSelectedItems } = loadStateFromLocalStorage() || {};
+      if (storedSelectedLibrary) {
+          setSelectedLibrary(storedSelectedLibrary);
+      }
+      if (storedCurrentFolder) {
+          setCurrentFolder(storedCurrentFolder);
+      }
+      if (storedSelectedItems) {
+          setSelectedItems(storedSelectedItems);
+      }
+
+      const handler = () => setThemeKey(getSelectedTheme());
+      window.addEventListener('themechange', handler);
+      return () => {
+          window.removeEventListener('themechange', handler);
+          // saveStateToLocalStorage will be handled by a separate effect
+      };
+  }, []); // Empty dependency array to run only on mount
+
+  // Effect to save state to localStorage whenever relevant state changes
+  React.useEffect(() => {
+      saveStateToLocalStorage(selectedLibrary, currentFolder, selectedItems);
+  }, [selectedLibrary, currentFolder, selectedItems]);
 
   return (
     <Admin
@@ -49,8 +87,9 @@ export default function App() {
       </CustomRoutes>
       <Resource
         name="sharepoint/libraries"
-        options={{ label: "SharePoint Libraries" }}
-        list={SharePointLibrariesExplorer}
+        options={{ label: "Workflow Studio" }} // Changed label to "Workflow Studio"
+        list={Space} // Use Space component
+        icon={FolderIcon} // Added FolderIcon
       />
       <Resource
         name="blocks"
@@ -65,8 +104,8 @@ export default function App() {
       <Resource
         name="workflow-engine"
         options={{ label: "Workflow Engine" }}
-        list={WorkflowEngine}
+        // list={WorkflowEngine} // Commented out as the component was removed
       />
     </Admin>
   );
-} 
+}

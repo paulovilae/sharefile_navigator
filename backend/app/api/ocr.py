@@ -143,7 +143,7 @@ def ocr_file(req: OcrRequest):
             session.close()
             return {"file_id": file_id, "ocr_text": ocr_result.ocr_text, "cached": True, "engine": req.engine}
         # Fetch file content from SharePoint API
-        url = f"http://localhost:8000/api/sharepoint/file_content?drive_id={req.drive_id}&item_id={req.item_id}"
+        url = f"http://localhost:8001/api/sharepoint/file_content?drive_id={req.drive_id}&item_id={req.item_id}"
         logger.warning(f"[OCR] About to fetch file from {url}")
         resp = requests.get(url)
         logger.warning(f"[OCR] File fetch response status: {resp.status_code}")

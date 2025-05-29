@@ -36,7 +36,7 @@ const defaultDarkTheme = createTheme({
   shape: {
     borderRadius: 6,
   },
-  logo: 'https://upload.wikimedia.org/wikipedia/commons/a/ac/No_image_available.svg',
+  logo: '/src/logo.svg',
 });
 
 export default defaultDarkTheme; 

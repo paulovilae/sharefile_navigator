@@ -20,11 +20,11 @@ const StyledTableHeadRow = styled(TableRow)(({ theme }) => ({
   height: '40px', // Original row height for header
 }));
 
-export default function GenericFileEditor({ data, columns, onAddRow, onRemoveRow, onUpdateRow, onReorder }) {
+export default function GenericFileEditor({ data, columns, onAddRow, onRemoveRow, onUpdateRow, onReorder, externallySelectedIds, onExternalSelectionChange }) {
   const [sortBy, setSortBy] = useState('');
   const [sortOrder, setSortOrder] = useState('asc');
   const [selectedColumns, setSelectedColumns] = useState(columns.filter(column => !column.hidden).map(column => column.field));
-  const [selectedRows, setSelectedRows] = useState([]);
+  const [internalSelectedRows, setInternalSelectedRows] = useState([]);
   const [openAddDialog, setOpenAddDialog] = useState(false);
   const [openEditDialog, setOpenEditDialog] = useState(false);
   const [editRow, setEditRow] = useState(null);
@@ -43,7 +43,7 @@ export default function GenericFileEditor({ data, columns, onAddRow, onRemoveRow
     const isAsc = sortBy === columnField && sortOrder === 'asc';
     setSortOrder(isAsc ? 'desc' : 'asc');
     setSortBy(columnField);
-    setRows(sortedData); // Update rows state after sorting
+    // setRows(sortedData); // sortedData is derived from rows, sorting rows directly or relying on useMemo
   };
 
   const sortedData = React.useMemo(() => {
@@ -78,32 +78,36 @@ export default function GenericFileEditor({ data, columns, onAddRow, onRemoveRow
     }
   };
 
+  const currentSelectedIds = externallySelectedIds !== undefined ? externallySelectedIds : internalSelectedRows;
+  const updateSelection = onExternalSelectionChange || setInternalSelectedRows;
+
   const handleSelectAllRows = (event) => {
+    let newSelectedIds;
     if (event.target.checked) {
-      setSelectedRows(rows.map(row => row.id));
+      newSelectedIds = filteredData.map(row => row.id); // Select all from currently filtered data
     } else {
-      setSelectedRows([]);
+      newSelectedIds = [];
     }
+    updateSelection(newSelectedIds);
   };
 
   const handleSelectRow = (event, id) => {
-    const selectedIndex = selectedRows.indexOf(id);
+    const selectedIndex = currentSelectedIds.indexOf(id);
     let newSelected = [];
 
     if (selectedIndex === -1) {
-      newSelected = newSelected.concat(selectedRows, id);
+      newSelected = newSelected.concat(currentSelectedIds, id);
     } else if (selectedIndex === 0) {
-      newSelected = newSelected.concat(selectedRows.slice(1));
-    } else if (selectedIndex === rows.length - 1) {
-      newSelected = newSelected.concat(selectedRows.slice(0, -1));
+      newSelected = newSelected.concat(currentSelectedIds.slice(1));
+    } else if (selectedIndex === currentSelectedIds.length - 1) {
+      newSelected = newSelected.concat(currentSelectedIds.slice(0, -1));
     } else if (selectedIndex > 0) {
       newSelected = newSelected.concat(
-        selectedRows.slice(0, selectedIndex),
-        selectedRows.slice(selectedIndex + 1),
+        currentSelectedIds.slice(0, selectedIndex),
+        currentSelectedIds.slice(selectedIndex + 1),
       );
     }
-
-    setSelectedRows(newSelected);
+    updateSelection(newSelected);
   };
 
   const handleAddRow = () => {
@@ -113,8 +117,8 @@ export default function GenericFileEditor({ data, columns, onAddRow, onRemoveRow
 
   const handleRemoveRow = () => {
     if (onRemoveRow) {
-      selectedRows.forEach(rowId => onRemoveRow(rowId));
-      setSelectedRows([]);
+      currentSelectedIds.forEach(rowId => onRemoveRow(rowId));
+      updateSelection([]);
     }
   };
 
@@ -154,7 +158,7 @@ export default function GenericFileEditor({ data, columns, onAddRow, onRemoveRow
     }));
   };
 
-  const isRowSelected = (id) => selectedRows.indexOf(id) !== -1;
+  const isRowSelected = (id) => currentSelectedIds.indexOf(id) !== -1;
 
   const handleDownloadJson = () => {
     const json = JSON.stringify(rows, null, 2);
@@ -277,9 +281,11 @@ export default function GenericFileEditor({ data, columns, onAddRow, onRemoveRow
                 </IconButton>
               </Tooltip>
               <Tooltip title="Delete">
-                <IconButton onClick={handleRemoveRow} disabled={selectedRows.length === 0}>
-                  <DeleteIcon />
-                </IconButton>
+                <span>
+                  <IconButton onClick={handleRemoveRow} disabled={currentSelectedIds.length === 0}>
+                    <DeleteIcon />
+                  </IconButton>
+                </span>
               </Tooltip>
               <Tooltip title="Download JSON">
                 <IconButton onClick={handleDownloadJson}>
@@ -296,23 +302,21 @@ export default function GenericFileEditor({ data, columns, onAddRow, onRemoveRow
           </Box>
         </Box>
         <TableContainer>
-          
-                <Table
-                  sx={{ minWidth: 750 }}
-                  aria-labelledby="tableTitle"
-                  size={'medium'}
-                  
-                  
-                >
-                  <TableHead>
-                    <StyledTableHeadRow>
-                      <TableCell></TableCell> {/* Spacer for drag handle */}
+          <Table
+            sx={{ minWidth: 750 }}
+            aria-labelledby="tableTitle"
+            size={'medium'}
+          >
+            <TableHead>
+              <StyledTableHeadRow>
+                <TableCell></TableCell>
                       <TableCell padding="checkbox">
-                        <input
-                          type="checkbox"
+                        <Checkbox
+                          checked={filteredData.length > 0 && currentSelectedIds.length === filteredData.length}
                           onChange={handleSelectAllRows}
-                          checked={selectedRows.length === rows.length && rows.length !== 0}
-                          indeterminate={selectedRows.length > 0 && selectedRows.length < rows.length}
+                          indeterminate={currentSelectedIds.length > 0 && currentSelectedIds.length < filteredData.length}
+                          size="small" // Apply consistent size
+                          color="primary" // Apply consistent color
                         />
                       </TableCell>
                       {columns
@@ -334,61 +338,58 @@ export default function GenericFileEditor({ data, columns, onAddRow, onRemoveRow
                       <TableCell>Actions</TableCell>
                     </StyledTableHeadRow>
                   </TableHead>
-                  <TableBody >
+                  <TableBody>
                     {filteredData.map((row, index) => {
                       const isItemSelected = isRowSelected(row.id);
                       const labelId = `enhanced-table-checkbox-${row.id}`;
 
                       return (
-                        
-                            <StyledTableRow
-                              hover
-                              onClick={(event) => handleSelectRow(event, row.id)}
-                              role="checkbox"
-                              aria-checked={isItemSelected}
-                              tabIndex={-1}
-                              key={row.id}
-                              selected={isItemSelected}
-                              draggable
-                              onDragStart={() => handleDragStart(row)}
-                              onDragEnter={() => handleDragEnter(row)}
-                              onDragEnd={handleDragEnd}
-                            >
-                              <TableCell>
-                                <IconButton aria-label="drag"  onClick={(event) => event.stopPropagation()}>
-                                  <MenuIcon />
-                                </IconButton>
+                        <StyledTableRow
+                          hover
+                          onClick={(event) => handleSelectRow(event, row.id)}
+                          role="checkbox"
+                          aria-checked={isItemSelected}
+                          tabIndex={-1}
+                          key={row.id}
+                          selected={isItemSelected}
+                          draggable
+                          onDragStart={() => handleDragStart(row)}
+                          onDragEnter={() => handleDragEnter(row)}
+                          onDragEnd={handleDragEnd}
+                        >
+                          <TableCell>
+                            <IconButton aria-label="drag" onClick={(event) => event.stopPropagation()}>
+                              <MenuIcon />
+                            </IconButton>
+                          </TableCell>
+                          <TableCell padding="checkbox">
+                            <Checkbox
+                              checked={isItemSelected}
+                              onChange={(event) => handleSelectRow(event, row.id)}
+                              inputProps={{ 'aria-labelledby': labelId }}
+                              size="small" // Apply consistent size
+                              color="primary" // Apply consistent color
+                            />
+                          </TableCell>
+                          {columns
+                            .filter(column => selectedColumns.includes(column.field))
+                            .map(column => (
+                              <TableCell key={`${row.id}-${column.field}`} component="th" id={labelId} scope="row">
+                                {column.render ? column.render(row, column) : row[column.field]}
                               </TableCell>
-                              <TableCell padding="checkbox">
-                                <input
-                                  type="checkbox"
-                                  checked={isItemSelected}
-                                  onChange={(event) => handleSelectRow(event, row.id)}
-                                  inputProps={{ 'aria-labelledby': labelId }}
-                                />
-                              </TableCell>
-                              {columns
-                                .filter(column => selectedColumns.includes(column.field))
-                                .map(column => (
-                                  <TableCell key={`${row.id}-${column.field}`} component="th" id={labelId} scope="row">
-                                    {column.render ? column.render(row, column) : row[column.field]}
-                                  </TableCell>
-                                ))}
-                              <TableCell>
-                                <Tooltip title="Edit">
-                                  <IconButton onClick={() => handleUpdateRow(row)}>
-                                    <EditIcon />
-                                  </IconButton>
-                                </Tooltip>
-                              </TableCell>
-                            </StyledTableRow>
-                          
+                            ))}
+                          <TableCell>
+                            <Tooltip title="Edit">
+                              <IconButton onClick={() => handleUpdateRow(row)}>
+                                <EditIcon />
+                              </IconButton>
+                            </Tooltip>
+                          </TableCell>
+                        </StyledTableRow>
                       );
                     })}
-                    
                   </TableBody>
                 </Table>
-              
           </TableContainer>
         </Paper>
         <Dialog open={openAddDialog} onClose={handleCloseAddDialog}>
