@@ -1,12 +1,14 @@
+from app.schemas import OcrImagesRequest
 import logging
 import os
+import re # Added for regex in get_llm_quality_score
 logging.basicConfig(filename='ocr_debug.log', level=logging.DEBUG, format='%(asctime)s %(levelname)s:%(name)s:%(message)s')
 logger = logging.getLogger(__name__)
 
 print("OCR.PY LOADED")
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException, Body, BackgroundTasks, Depends
 from pydantic import BaseModel
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy import create_engine
 from app.models import OcrResult, Base
 import easyocr
@@ -28,13 +30,11 @@ from fastapi.responses import FileResponse
 import shutil
 import datetime
 import json
+from app.api.sharepoint import get_graph_token, list_files as list_sharepoint_files_in_folder, get_file_content as get_sharepoint_file_content
+from app.utils.llm_utils import get_llm_quality_score
 
-# Developers: To use a specific SQLite database file, set DATABASE_URL below to an absolute path.
-# Example (uncomment and edit as needed):
-# DATABASE_URL = 'sqlite:///C:/Users/paulo/Programs/ocr/ocr.db'
-DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///ocr.db')  # Uses .env or defaults to ocr.db in current working directory
+DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///ocr.db')
 
-# Log the actual SQLite database file being used
 if DATABASE_URL.startswith('sqlite:///'):
     db_path = DATABASE_URL.replace('sqlite:///', '')
     abs_db_path = os.path.abspath(db_path)
@@ -43,6 +43,8 @@ if DATABASE_URL.startswith('sqlite:///'):
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+from typing import Any
 
 router = APIRouter(tags=["ocr"])
 
@@ -56,24 +58,27 @@ class OcrRequest(BaseModel):
         print("OcrRequest model constructed")
         super().__init__(**data)
 
+class SharePointItem(BaseModel):
+    drive_id: str
+    item_id: str
+    item_type: str  # "file" or "folder"
+
 class PreprocessRequest(BaseModel):
     file_id: str
     directory_id: str
     pdf_data: str  # base64-encoded
     engine: str = "pymupdf"
     dpi: int = 300
-    width: int = 0  # 0 means auto
-    height: int = 0  # 0 means auto
-    scale: float = 1.0  # 1.0 means no scaling
-    colorspace: str = "rgb"  # rgb, gray, cmyk
+    width: int = 0
+    height: int = 0
+    scale: float = 1.0
+    colorspace: str = "rgb"
     alpha: bool = False
-    rotation: int = 0  # degrees
-    image_format: str = "png"  # png, jpeg, tiff
-    page_range: str = ""  # e.g. "1-3,5"
+    rotation: int = 0
+    image_format: str = "png"
+    page_range: str = ""
     grayscale: bool = False
     transparent: bool = False
-    # Note: Pillow post-processing (contrast, gamma, etc.) is not included here
-    # and should be handled in a later step.
     
     class Config:
         schema_extra = {
@@ -96,137 +101,161 @@ class PreprocessRequest(BaseModel):
             }
         }
 
-class OcrImagesRequest(BaseModel):
-    image_paths: list
-    engine: str = 'easyocr'
-    lang: str = 'en'
-    paragraph: bool = True  # for easyocr
-    # Add more options as needed
+@router.post('/process_sharepoint_item', summary="Process SharePoint item for OCR", description="Accepts a SharePoint item (file or folder) and initiates OCR processing.")
+async def process_sharepoint_item(item: SharePointItem, background_tasks: BackgroundTasks, db: Session = Depends(SessionLocal)):
+    """
+    Processes a SharePoint item (file or folder) for OCR.
 
-@router.post('/file')
-def ocr_file(req: OcrRequest):
-    logger.warning("ENTERED OCR FILE ENDPOINT")
+    If the item is a folder, it recursively finds all PDF files within the folder.
+    For each PDF file, it downloads the file from SharePoint, creates an initial `OcrResult`
+    entry in the database with status "Queued", and adds the file to an asynchronous
+    processing queue (FastAPI background tasks) for OCR.
+    """
+    logger.info(f"Received request to process SharePoint item: {item.dict()}")
     try:
-        forbidden_names = {'file', 'test', 'engines', 'status', 'ocr'}
-        logger.warning("Checking forbidden names")
-        if req.item_id.lower() in forbidden_names:
-            logger.warning(f"Forbidden item_id used: {req.item_id}")
-            raise HTTPException(status_code=400, detail=f"Forbidden file/item_id: {req.item_id}")
-        logger.warning("Creating DB session")
-        session = SessionLocal()
-        logger.warning("DB session created")
-        file_id = req.item_id
-        logger.warning("Querying for existing OCR result")
-        try:
-            ocr_result = session.query(OcrResult).filter_by(file_id=file_id).first()
-        except OperationalError as e:
-            if "no such table: ocr_results" in str(e):
-                logger.warning("Table ocr_results does not exist, running Alembic migrations...")
-                from pathlib import Path
-                project_root = Path(__file__).resolve().parents[1]
-                alembic_ini_path = str(project_root / 'alembic.ini')
-                alembic_cfg = Config(alembic_ini_path)
-                script_location = str(project_root / "alembic")
-                logger.warning(f"Using alembic script_location: {script_location}")
-                alembic_cfg.set_main_option("script_location", script_location)
-                command.upgrade(alembic_cfg, "head")
-                session.close()
-                session = SessionLocal()
-                ocr_result = session.query(OcrResult).filter_by(file_id=file_id).first()
-            else:
-                logger.warning(f"Exception at start of endpoint: {e}")
-                session.close()
-                raise
-        logger.warning("Checked for existing OCR result")
-        if ocr_result and ocr_result.ocr_text:
-            logger.warning(f"[OCR] Cache hit for file_id={file_id}")
-            session.close()
-            return {"file_id": file_id, "ocr_text": ocr_result.ocr_text, "cached": True, "engine": req.engine}
-        # Fetch file content from SharePoint API
-        url = f"http://localhost:8001/api/sharepoint/file_content?drive_id={req.drive_id}&item_id={req.item_id}"
-        logger.warning(f"[OCR] About to fetch file from {url}")
-        resp = requests.get(url)
-        logger.warning(f"[OCR] File fetch response status: {resp.status_code}")
-        if resp.status_code != 200:
-            logger.warning(f"[OCR] File fetch failed: {resp.status_code}")
-            session.close()
-            raise HTTPException(status_code=404, detail="File not found or could not be fetched.")
-        # Detect file type
-        ext = os.path.splitext(file_id)[-1].lower()
-        mime_type = resp.headers.get('content-type') or mimetypes.guess_type(file_id)[0] or ''
-        logger.warning(f"[OCR] File extension: {ext}, mime_type: {mime_type}")
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".ocr") as tmp_file:
-            tmp_file.write(resp.content)
-            tmp_path = tmp_file.name
-        text = ''
-        try:
-            if ext == '.pdf' or 'pdf' in mime_type:
-                logger.warning(f"[OCR] Detected PDF, converting to images with PyMuPDF...")
-                images = pdf_to_images(tmp_path)
-                ocr_texts = []
-                for i, img in enumerate(images):
-                    logger.warning(f"[OCR] OCR page {i+1} with engine {req.engine}")
-                    if req.engine == 'tesseract':
-                        ocr_texts.append(pytesseract.image_to_string(img, lang=req.lang))
-                    else:  # easyocr default
-                        # Save image to a temp file for easyocr
-                        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as img_tmp:
-                            img.save(img_tmp.name)
-                            reader = easyocr.Reader([req.lang], gpu=True)
-                            result = reader.readtext(img_tmp.name, detail=0, paragraph=True)
-                            ocr_texts.append('\n'.join(result))
-                        os.remove(img_tmp.name)
-                text = '\n\n'.join(ocr_texts)
-            else:
-                logger.warning(f"[OCR] Detected image, using engine {req.engine}")
-                if req.engine == 'tesseract':
-                    img = Image.open(tmp_path)
-                    text = pytesseract.image_to_string(img, lang=req.lang)
-                else:  # easyocr default
-                    reader = easyocr.Reader([req.lang], gpu=True)
-                    result = reader.readtext(tmp_path, detail=0, paragraph=True)
-                    text = '\n'.join(result)
-            logger.warning(f"[OCR] OCR complete for file_id={file_id}")
-        except Exception as e:
-            logger.warning(f"[OCR] Exception: {e}")
-            os.remove(tmp_path)
-            session.close()
-            raise HTTPException(status_code=500, detail=f"OCR failed: {str(e)}")
-        # Save to DB
-        if ocr_result:
-            ocr_result.ocr_text = text
-        else:
-            ocr_result = OcrResult(file_id=file_id, ocr_text=text)
-            session.add(ocr_result)
-        session.commit()
-        session.close()
-        os.remove(tmp_path)
-        logger.warning(f"[OCR] Done for file_id={file_id}")
-        return {"file_id": file_id, "ocr_text": text, "cached": False, "engine": req.engine}
-    except Exception as e:
-        logger.warning(f"Exception at start of endpoint: {e}")
-        raise
+        if item.item_type == "file":
+            await process_sharepoint_file(item.drive_id, item.item_id, background_tasks, db)
+            return {"message": "File processing initiated", "file_id": item.item_id, "status": "queued"}
 
-@router.get('/status')
-def ocr_status(file_id: str):
-    session = SessionLocal()
-    ocr_result = session.query(OcrResult).filter_by(file_id=file_id).first()
-    session.close()
+        elif item.item_type == "folder":
+            return await process_sharepoint_folder(item.drive_id, item.item_id, background_tasks, db)
+
+        else:
+            raise HTTPException(status_code=400, detail="Invalid item_type. Must be 'file' or 'folder'.")
+
+    except Exception as e:
+        logger.error(f"Error in process_sharepoint_item: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+async def process_sharepoint_file(drive_id: str, item_id: str, background_tasks: BackgroundTasks, db: Session):
+    """
+    Processes a single SharePoint file for OCR.
+    """
+    logger.info(f"Processing single file: drive_id={drive_id}, item_id={item_id}")
+    ocr_result = db.query(OcrResult).filter_by(file_id=item_id).first()
     if not ocr_result:
-        return {
-            "file_id": file_id,
-            "status": "not_processed"
-        }
+        ocr_result = OcrResult(
+            file_id=item_id,
+            directory_id=drive_id,
+            status="queued",
+            created_at=datetime.datetime.utcnow(),
+            updated_at=datetime.datetime.utcnow()
+        )
+        db.add(ocr_result)
+        db.commit()
+        db.refresh(ocr_result)
+        logger.info(f"Created OcrResult for file {item_id} with status 'queued'")
+    elif ocr_result.status not in ["completed", "error", "needs_manual_review"]:
+        ocr_result.status = "queued"
+        ocr_result.updated_at = datetime.datetime.utcnow()
+        db.commit()
+        logger.info(f"Re-queueing OcrResult for file {item_id}")
+    else:
+        logger.info(f"File {item_id} already processed with status: {ocr_result.status}. Skipping.")
+        return {"message": f"File {item_id} already processed.", "file_id": item_id, "status": ocr_result.status}
+
+    background_tasks.add_task(run_ocr_pipeline, drive_id, item_id, ocr_result.file_id)
+    logger.info(f"Task added for file: {item_id}")
+
+
+async def process_sharepoint_folder(drive_id: str, item_id: str, background_tasks: BackgroundTasks, db: Session):
+    """
+    Processes a SharePoint folder for OCR.
+    """
+    logger.info(f"Processing folder: drive_id={drive_id}, item_id={item_id}")
+    processed_files_info = []
+    try:
+        response = list_sharepoint_files_in_folder(drive_id=drive_id, parent_id=item_id)
+        folder_files_data = json.loads(response.body)
+
+        pdf_files_in_folder = [
+            f for f in folder_files_data
+            if f.get("name", "").lower().endswith(".pdf") or (f.get("mimeType") == "application/pdf")
+        ]
+        logger.info(f"Found {len(pdf_files_in_folder)} PDF(s) in folder {item_id}")
+
+        for pdf_file_meta in pdf_files_in_folder:
+            file_item_id = pdf_file_meta.get("id")
+            if not file_item_id:
+                logger.warning(f"Skipping file without id in folder {item_id}: {pdf_file_meta.get('name')}")
+                continue
+
+            ocr_result = db.query(OcrResult).filter_by(file_id=file_item_id).first()
+            current_status = "unknown"
+            if not ocr_result:
+                ocr_result = OcrResult(
+                    file_id=file_item_id,
+                    directory_id=drive_id,
+                    status="queued",
+                    created_at=datetime.datetime.utcnow(),
+                    updated_at=datetime.datetime.utcnow()
+                )
+                db.add(ocr_result)
+                db.commit()
+                db.refresh(ocr_result)
+                current_status = "queued"
+                logger.info(f"Created OcrResult for file {file_item_id} in folder {item_id} with status 'queued'")
+            elif ocr_result.status not in ["completed", "error", "needs_manual_review"]:
+                ocr_result.status = "queued"
+                ocr_result.updated_at = datetime.datetime.utcnow()
+                db.commit()
+                current_status = "queued"
+                logger.info(f"Re-queueing OcrResult for file {file_item_id} in folder {item_id}")
+            else:
+                current_status = ocr_result.status
+                logger.info(f"File {file_item_id} in folder {item_id} already processed with status: {current_status}. Skipping.")
+                processed_files_info.append({"file_id": file_item_id, "status": current_status, "message": "Already processed"})
+                continue
+
+            background_tasks.add_task(run_ocr_pipeline, drive_id, file_item_id, ocr_result.file_id)
+            processed_files_info.append({"file_id": file_item_id, "status": current_status})
+
+        return {"message": f"Folder processing initiated for {len(pdf_files_in_folder)} PDF(s).", "folder_id": item_id, "processed_files": processed_files_info}
+
+    except Exception as e:
+        logger.error(f"Error processing folder {item_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error processing folder {item_id}: {str(e)}")
+
+@router.get('/status/{ocr_result_id_or_file_id}', summary="Get OCR status by OcrResult ID or SharePoint File ID")
+def get_ocr_status(ocr_result_id_or_file_id: str):
+    """
+    Retrieves the OCR processing status and results for a given item.
+    The path parameter can be either the integer ID of the OcrResult record
+    or the string file_id (SharePoint item ID).
+    """
+    session = SessionLocal()
+    ocr_result = None
+    is_integer_id = False
+    try:
+        # Try to interpret as integer ID first
+        result_id = int(ocr_result_id_or_file_id)
+        is_integer_id = True
+        ocr_result = session.query(OcrResult).filter_by(id=result_id).first()
+        logger.info(f"Attempting to fetch OCR status by OcrResult.id: {result_id}")
+    except ValueError:
+        # Not an integer, so treat as file_id (string)
+        logger.info(f"Attempting to fetch OCR status by file_id: {ocr_result_id_or_file_id}")
+        ocr_result = session.query(OcrResult).filter_by(file_id=ocr_result_id_or_file_id).first()
+
+    session.close()
+
+    if not ocr_result:
+        identifier_type = "OcrResult.id" if is_integer_id else "file_id"
+        logger.warning(f"OCR status requested for {identifier_type} '{ocr_result_id_or_file_id}', but no record found.")
+        raise HTTPException(status_code=404, detail=f"OCR result not found for identifier: {ocr_result_id_or_file_id}")
+
+    logger.info(f"Returning OCR status for {ocr_result_id_or_file_id}: {ocr_result.status}")
     return {
-        "file_id": file_id,
-        "pdf_text": ocr_result.pdf_text,
-        "pdf_image_path": ocr_result.pdf_image_path,
-        "ocr_text": ocr_result.ocr_text,
-        "ocr_image_path": ocr_result.ocr_image_path,
-        "ocr_json": ocr_result.ocr_json,
+        "id": ocr_result.file_id,  # Use file_id as the id for compatibility
+        "file_id": ocr_result.file_id,
+        "directory_id": ocr_result.directory_id,
+        "status": ocr_result.status,
+        "ocr_text_snippet": (ocr_result.ocr_text[:200] + '...' if ocr_result.ocr_text and len(ocr_result.ocr_text) > 200 else ocr_result.ocr_text) if ocr_result.ocr_text else None,
+        # "ocr_text": ocr_result.ocr_text, # Full text can be large, consider a separate endpoint or conditional inclusion
+        "pdf_text_snippet": (ocr_result.pdf_text[:200] + '...' if ocr_result.pdf_text and len(ocr_result.pdf_text) > 200 else ocr_result.pdf_text) if ocr_result.pdf_text else None,
         "metrics": ocr_result.metrics,
-        "updated_at": ocr_result.updated_at,
-        "status": "processed"
+        "created_at": ocr_result.created_at,
+        "updated_at": ocr_result.updated_at
     }
 
 @router.get('/engines')
@@ -239,13 +268,27 @@ def test():
     print("TEST ENDPOINT CALLED")
     return {"status": "ok"}
 
-def pdf_to_images(pdf_path):
+def pdf_to_images(pdf_path, dpi: Optional[int] = None):
+    """
+    Converts a PDF file to a list of PIL Images.
+    Allows specifying DPI for rendering.
+    """
     doc = fitz.open(pdf_path)
     images = []
-    for page in doc:
-        pix = page.get_pixmap()
-        img = Image.open(io.BytesIO(pix.tobytes("png")))
-        images.append(img)
+    for page_num, page in enumerate(doc):
+        try:
+            if dpi:
+                zoom = dpi / 72.0  # PyMuPDF's default DPI is 72
+                matrix = fitz.Matrix(zoom, zoom)
+                pix = page.get_pixmap(matrix=matrix, alpha=False)
+            else:
+                pix = page.get_pixmap(alpha=False) # Default DPI
+            
+            img = Image.open(io.BytesIO(pix.tobytes("png")))
+            images.append(img)
+        except Exception as e_page:
+            logger.error(f"Error converting page {page_num} of {pdf_path} to image: {e_page}", exc_info=True)
+            # Optionally, append a placeholder or skip the page
     return images
 
 @router.post("/preprocess")
@@ -262,217 +305,296 @@ def preprocess(req: PreprocessRequest):
     image_ids = []
     image_urls = []
     page_texts = []
-    # Use a fixed directory for each file_id
     base_temp_dir = os.path.join(tempfile.gettempdir(), 'ocr_images')
     temp_dir = os.path.join(base_temp_dir, req.directory_id, req.file_id)
-    # Clear the directory for this file_id before saving new images
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir)
     os.makedirs(temp_dir, exist_ok=True)
-    # Parse page range
-    def parse_page_range(page_range, num_pages):
-        if not page_range:
-            return list(range(num_pages))
-        pages = set()
-        for part in page_range.split(","):
-            if "-" in part:
-                start, end = part.split("-")
-                pages.update(range(int(start)-1, int(end)))
+    
+    def parse_page_range(page_range_str, num_pages):
+        """Parses a page range string (e.g., "1-3,5") and returns a list of page numbers."""
+        if not page_range_str:
+            return list(range(1, num_pages + 1))  # All pages
+        
+        page_numbers = []
+        ranges = page_range_str.split(',')
+        for r in ranges:
+            if '-' in r:
+                try:
+                    start, end = map(int, r.split('-'))
+                    page_numbers.extend(range(start, end + 1))
+                except ValueError:
+                    logger.warning(f"Invalid page range format: {r}")
             else:
-                pages.add(int(part)-1)
-        return sorted([p for p in pages if 0 <= p < num_pages])
-    if req.engine == "pymupdf":
+                try:
+                    page_numbers.append(int(r))
+                except ValueError:
+                    logger.warning(f"Invalid page number format: {r}")
+        
+        return [p for p in page_numbers if 1 <= p <= num_pages]
+
+    try:
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-        pages = parse_page_range(req.page_range, len(doc))
-        for i in pages:
-            page = doc.load_page(i)
-            # Extract embedded text
-            text = page.get_text()
-            page_texts.append(text)
-            # Compute width/height
-            rect = page.rect
+        num_pages = len(doc)
+        selected_pages = parse_page_range(req.page_range, num_pages)
+        
+        for page_num in selected_pages:
+            page = doc[page_num - 1]  # PyMuPDF uses 0-based indexing
+            
+            rotate = int(req.rotation)
+            mat = fitz.Matrix(1, 1).preRotate(rotate)
+            
             if req.width > 0 and req.height > 0:
-                zoom_x = req.width / rect.width
-                zoom_y = req.height / rect.height
+                # Use provided width and height
+                width, height = int(req.width), int(req.height)
+                zoom_x = width / page.rect.width
+                zoom_y = height / page.rect.height
+                pix = page.get_pixmap(matrix=mat, colorspace=fitz.csRGB if req.colorspace == "rgb" else None, alpha=req.alpha, xres=int(req.dpi * zoom_x), yres=int(req.dpi * zoom_y))
+            elif req.scale != 1.0:
+                # Compute width and height from scale
+                width = int(page.rect.width * (req.dpi / 72) * req.scale)
+                height = int(page.rect.height * (req.dpi / 72) * req.scale)
+                zoom_x = width / page.rect.width
+                zoom_y = height / page.rect.height
+                pix = page.get_pixmap(matrix=mat, colorspace=fitz.csRGB if req.colorspace == "rgb" else None, alpha=req.alpha, xres=int(req.dpi * zoom_x), yres=int(req.dpi * zoom_y))
             else:
-                scale = req.scale if hasattr(req, 'scale') and req.scale else 1.0
-                zoom_x = (req.dpi / 72.0) * scale
-                zoom_y = (req.dpi / 72.0) * scale
-            matrix = fitz.Matrix(zoom_x, zoom_y).prerotate(req.rotation)
-            # Colorspace
-            colorspace = fitz.csRGB
-            if req.colorspace.lower() == "gray":
-                colorspace = fitz.csGRAY
-            elif req.colorspace.lower() == "cmyk":
-                colorspace = fitz.csCMYK
-            img_path = os.path.join(temp_dir, f"{req.file_id}_page{i+1}.{req.image_format}")
-            pix = page.get_pixmap(matrix=matrix, colorspace=colorspace, alpha=req.alpha)
-            pix.save(img_path)
-            image_ids.append(img_path)
-            image_urls.append(f"/api/ocr/image?path={img_path}")
-    elif req.engine == "pdf2image":
-        # pdf2image options
-        first_page = None
-        last_page = None
-        if req.page_range:
-            pages = parse_page_range(req.page_range, 10000)  # pdf2image will error if out of range
-            if pages:
-                first_page = pages[0] + 1
-                last_page = pages[-1] + 1
-        # Compute size
-        size = None
-        if req.width > 0 and req.height > 0:
-            size = (req.width, req.height)
-        else:
-            scale = req.scale if hasattr(req, 'scale') and req.scale else 1.0
-            # Use A4 as default if we can't get real size
-            base_width = 595
-            base_height = 842
-            width = int(base_width * (req.dpi / 72.0) * scale)
-            height = int(base_height * (req.dpi / 72.0) * scale)
-            size = (width, height)
-        imgs = convert_from_bytes(
-            pdf_bytes,
-            dpi=req.dpi,
-            size=size,
-            fmt=req.image_format,
-            first_page=first_page,
-            last_page=last_page,
-            grayscale=req.grayscale,
-            transparent=req.transparent,
-            thread_count=1
-        )
-        for idx, img in enumerate(imgs):
-            img_path = os.path.join(temp_dir, f"{req.file_id}_page{(first_page or 1) + idx}.{req.image_format}")
-            img.save(img_path)
-            image_ids.append(img_path)
-            image_urls.append(f"/api/ocr/image?path={img_path}")
-        # pdf2image cannot extract text
-        page_texts = [None] * len(image_ids)
-    else:
-        raise HTTPException(status_code=400, detail="Unknown engine")
-    elapsed = time.time() - start_time
-    logger.info(f"/preprocess params: {req.dict()}")
-    # Save to DB
-    session = SessionLocal()
-    ocr_result = session.query(OcrResult).filter_by(file_id=req.file_id).first()
-    preprocess_metrics = {
-        "engine": req.engine,
-        "time_seconds": elapsed,
-        "pages": len(image_ids),
-        "params": req.dict()
+                # Use DPI only
+                pix = page.get_pixmap(matrix=mat, colorspace=fitz.csRGB if req.colorspace == "rgb" else None, alpha=req.alpha, dpi=req.dpi)
+
+            if req.grayscale:
+                pix = pix.convert("gray")
+            
+            image = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+            
+            img_filename = f"page_{page_num}.{req.image_format}"
+            img_path = os.path.join(temp_dir, img_filename)
+            image.save(img_path, format=req.image_format.upper())
+            image_id = f"{req.directory_id}/{req.file_id}/{img_filename}"
+            image_ids.append(image_id)
+            image_url = f"/api/ocr/image?path={image_id}"
+            image_urls.append(image_url)
+            page_texts.append("")  # Placeholder for OCR text
+    
+    except Exception as e:
+        logger.error(f"Error during PDF preprocessing: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if 'doc' in locals():
+            doc.close()
+    
+    end_time = time.time()
+    metrics = {
+        "preprocessing_time": end_time - start_time,
+        "num_pages": len(image_ids),
+        "dpi": req.dpi,
+        "width": req.width,
+        "height": req.height,
+        "scale": req.scale,
+        "colorspace": req.colorspace,
+        "alpha": req.alpha,
+        "rotation": req.rotation,
+        "image_format": req.image_format,
+        "page_range": req.page_range,
+        "grayscale": req.grayscale,
+        "transparent": req.transparent
     }
-    if ocr_result:
-        ocr_result.directory_id = req.directory_id
-        ocr_result.pdf_text = '\n\n'.join([t for t in page_texts if t]) if page_texts else None
-        ocr_result.pdf_image_path = json.dumps(image_ids)
-        # Merge or create metrics JSON
-        metrics = ocr_result.metrics or {}
-        metrics["preprocess"] = preprocess_metrics
-        ocr_result.metrics = metrics
-        ocr_result.updated_at = datetime.datetime.utcnow()
-    else:
-        ocr_result = OcrResult(
-            file_id=req.file_id,
-            directory_id=req.directory_id,
-            pdf_text='\n\n'.join([t for t in page_texts if t]) if page_texts else None,
-            pdf_image_path=json.dumps(image_ids),
-            metrics={"preprocess": preprocess_metrics},
-            created_at=datetime.datetime.utcnow(),
-            updated_at=datetime.datetime.utcnow()
-        )
-        session.add(ocr_result)
-    session.commit()
-    session.close()
-    return {
-        "image_ids": image_ids,
-        "image_urls": image_urls,
-        "page_texts": page_texts,
-        "metrics": preprocess_metrics
-    }
+    
+    logger.info(f"PDF preprocessed. Images: {image_ids}, Metrics: {metrics}")
+    return {"image_ids": image_ids, "image_urls": image_urls, "page_texts": page_texts, "metrics": metrics}
 
 @router.get('/image')
 def serve_image(path: str):
     """
-    Serve a generated image file by its path (only from temp dir, only images).
+    Serves a preprocessed image.
     """
-    temp_dir = tempfile.gettempdir()
-    abs_path = os.path.abspath(path)
-    if not abs_path.startswith(temp_dir):
-        raise HTTPException(status_code=403, detail="Access denied.")
-    mime, _ = mimetypes.guess_type(abs_path)
-    if not mime or not mime.startswith('image/'):
-        raise HTTPException(status_code=400, detail="Not an image file.")
-    if not os.path.exists(abs_path):
-        raise HTTPException(status_code=404, detail="File not found.")
-    return FileResponse(abs_path, media_type=mime)
+    base_temp_dir = os.path.join(tempfile.gettempdir(), 'ocr_images')
+    image_path = os.path.join(base_temp_dir, path)
+    if not os.path.exists(image_path):
+        raise HTTPException(status_code=404, detail="Image not found")
+    return FileResponse(image_path, media_type=mimetypes.guess_type(image_path)[0] or 'image/png')
 
 @router.post('/images')
 def ocr_images(req: OcrImagesRequest):
     """
-    Run OCR on a list of image paths (generated by PDF conversion step).
+    Perform OCR on a list of images.
     """
-    start_time = time.time()
-    results = []
-    all_texts = []
-    for img_path in req.image_paths:
-        if not os.path.exists(img_path):
-            results.append({'image': img_path, 'error': 'File not found'})
-            continue
-        if req.engine == 'tesseract':
-            img = Image.open(img_path)
-            text = pytesseract.image_to_string(img, lang=req.lang)
-            results.append({'image': img_path, 'text': text})
-            all_texts.append(text)
-        elif req.engine == 'torch':
-            logger.warning("Torch engine selected: using EasyOCR with GPU enabled.")
-            reader = easyocr.Reader([req.lang], gpu=True)
-            result = reader.readtext(img_path, detail=0, paragraph=req.paragraph)
-            text = '\n'.join(result)
-            results.append({'image': img_path, 'text': text})
-            all_texts.append(text)
-        else:  # easyocr default
-            reader = easyocr.Reader([req.lang], gpu=True)
-            result = reader.readtext(img_path, detail=0, paragraph=req.paragraph)
-            text = '\n'.join(result)
-            results.append({'image': img_path, 'text': text})
-            all_texts.append(text)
-    elapsed = time.time() - start_time
-    # Save OCR results and metrics to DB
-    session = SessionLocal()
-    file_id = None
-    if req.image_paths:
-        # Try to extract file_id from the image path
-        file_id = os.path.basename(req.image_paths[0]).split('_page')[0]
-    ocr_metrics = {
-        "engine": req.engine,
-        "time_seconds": elapsed,
-        "images": len(req.image_paths),
-        "words": sum(len(t.split()) for t in all_texts),
-        "params": req.dict()
-    }
-    if file_id:
-        ocr_result = session.query(OcrResult).filter_by(file_id=file_id).first()
-        if ocr_result:
-            ocr_result.ocr_text = '\n\n'.join([t for t in all_texts if t]) if all_texts else None
-            ocr_result.ocr_image_path = json.dumps(req.image_paths)
-            ocr_result.ocr_json = results
-            # Merge or create metrics JSON
-            metrics = ocr_result.metrics or {}
-            metrics["ocr"] = ocr_metrics
-            ocr_result.metrics = metrics
-            ocr_result.updated_at = datetime.datetime.utcnow()
+    logger.info(f"Received request to OCR images: {req.image_paths}")
+    ocr_engine = req.engine
+    ocr_lang = req.lang
+    paragraph_mode = req.paragraph
+
+    if ocr_engine not in ["easyocr", "tesseract"]:
+        raise HTTPException(status_code=400, detail=f"Unsupported OCR engine: {ocr_engine}")
+
+    try:
+        extracted_texts = []
+        for image_path in req.image_paths:
+            logger.info(f"Processing image: {image_path} with {ocr_engine}")
+            if ocr_engine == 'easyocr':
+                reader = easyocr.Reader([ocr_lang], gpu=True)
+                result = reader.readtext(image_path, detail=0, paragraph=paragraph_mode)
+                text = '\n'.join(result)
+            elif ocr_engine == 'tesseract':
+                img = Image.open(image_path)
+                text = pytesseract.image_to_string(img, lang=ocr_lang)
+            else:
+                raise ValueError(f"Unsupported OCR engine: {ocr_engine}")
+            extracted_texts.append(text)
+        return {"texts": extracted_texts}
+    except Exception as e:
+        logger.error(f"Error during OCR: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        pass
+
+async def run_ocr_pipeline(drive_id: str, item_id: str, ocr_result_file_id: str):
+    """
+    Runs the OCR pipeline for a given file.
+    """
+    logging.info(f"Starting OCR pipeline for file_id: {item_id}, ocr_result_file_id: {ocr_result_file_id}")
+    try:
+        db: Session = SessionLocal()
+        ocr_result = db.query(OcrResult).filter(OcrResult.file_id == ocr_result_file_id).first()
+        if not ocr_result:
+            logging.error(f"OcrResult not found for file_id: {ocr_result_file_id}")
+            return
+
+        ocr_result.status = "Processing OCR"
+        db.commit()
+        logging.info(f"Updated OcrResult {ocr_result_file_id} status to 'Processing OCR'")
+
+        # 1. Perform initial OCR
+        file_content = get_sharepoint_file_content(drive_id=drive_id, item_id=item_id)
+        if file_content and file_content.body:
+            pdf_data = base64.b64encode(file_content.body).decode('utf-8')
         else:
-            ocr_result = OcrResult(
-                file_id=file_id,
-                ocr_text='\n\n'.join([t for t in all_texts if t]) if all_texts else None,
-                ocr_image_path=json.dumps(req.image_paths),
-                ocr_json=results,
-                metrics={"ocr": ocr_metrics},
-                created_at=datetime.datetime.utcnow(),
-                updated_at=datetime.datetime.utcnow()
+            logging.error(f"Failed to retrieve file content for item_id: {item_id}")
+            ocr_result.status = "Error"
+            ocr_result.error_message = "Failed to retrieve file content from SharePoint."
+            db.commit()
+            return
+
+        preprocess_request = PreprocessRequest(
+            file_id=item_id,
+            directory_id=drive_id,
+            pdf_data=pdf_data
+        )
+        preprocess_result = preprocess(preprocess_request)
+        image_paths = [os.path.join(tempfile.gettempdir(), 'ocr_images', path) for path in preprocess_result["image_ids"]]
+
+        ocr_images_request = OcrImagesRequest(image_paths=image_paths, lang='eng', engine='easyocr', paragraph=False)
+        ocr_result_initial = ocr_images(ocr_images_request)
+        extracted_text = "\\n".join(ocr_result_initial["texts"])
+
+        ocr_result.pdf_text = extracted_text
+        db.commit()
+
+        # 2. LLM Quality Review
+        ocr_result.status = "LLM Reviewing"
+        db.commit()
+        logging.info(f"Updated OcrResult {ocr_result_file_id} status to 'LLM Reviewing'")
+
+        system_prompt = os.environ.get("LLM_SYSTEM_PROMPT", "Evaluate the quality of the extracted text. Return a numerical score between 0 and 100.")
+        quality_score = await get_llm_quality_score(extracted_text, system_prompt)
+
+        quality_threshold = float(os.environ.get("LLM_QUALITY_THRESHOLD", "70"))
+
+        if quality_score is None:
+            logging.warning(f"LLM quality score is None for ocr_result_id: {ocr_result_id}. Setting status to 'Needs Manual Review'")
+            ocr_result.status = "Needs Manual Review"
+            db.commit()
+            return
+
+        if quality_score < quality_threshold:
+            logging.info(f"Quality score {quality_score} is below threshold {quality_threshold} for ocr_result_id: {ocr_result_id}. Retrying with higher DPI.")
+            ocr_result.status = "Retry w/ DPI"
+            db.commit()
+
+            # Retry OCR with higher DPI
+            preprocess_request_dpi = PreprocessRequest(
+                file_id=item_id,
+                directory_id=drive_id,
+                pdf_data=pdf_data,
+                dpi=600  # Higher DPI
             )
-            session.add(ocr_result)
-        session.commit()
-    session.close()
-    return {'results': results, 'metrics': ocr_metrics} 
+            preprocess_result_dpi = preprocess(preprocess_request_dpi)
+            image_paths_dpi = [os.path.join(tempfile.gettempdir(), 'ocr_images', path) for path in preprocess_result_dpi["image_ids"]]
+            ocr_images_request_dpi = OcrImagesRequest(image_paths=image_paths_dpi, lang='eng', engine='easyocr', paragraph=False)
+            ocr_result_dpi = ocr_images(ocr_images_request_dpi)
+            extracted_text_dpi = "\\n".join(ocr_result_dpi["texts"])
+
+            ocr_result.pdf_text = extracted_text_dpi
+            db.commit()
+
+            ocr_result.status = "LLM Reviewing"
+            db.commit()
+            logging.info(f"Updated OcrResult {ocr_result_id} status to 'LLM Reviewing' after DPI retry")
+            quality_score_dpi = await get_llm_quality_score(extracted_text_dpi, system_prompt)
+
+            if quality_score_dpi is None:
+                logging.warning(f"LLM quality score is None after DPI retry for ocr_result_id: {ocr_result_id}. Setting status to 'Needs Manual Review'")
+                ocr_result.status = "Needs Manual Review"
+                db.commit()
+                return
+
+            if quality_score_dpi < quality_threshold:
+                logging.info(f"Quality score {quality_score_dpi} is below threshold {quality_threshold} after DPI retry for ocr_result_id: {ocr_result_id}. Retrying with Image OCR.")
+                ocr_result.status = "Retry w/ Image OCR"
+                db.commit()
+
+                # Retry OCR with Image OCR
+                preprocess_request_image = PreprocessRequest(
+                    file_id=item_id,
+                    directory_id=drive_id,
+                    pdf_data=pdf_data,
+                    image_format='png'
+                )
+                preprocess_result_image = preprocess(preprocess_request_image)
+                image_paths_image = [os.path.join(tempfile.gettempdir(), 'ocr_images', path) for path in preprocess_result_image["image_ids"]]
+                ocr_images_request_image = OcrImagesRequest(image_paths=image_paths_image, lang='eng', engine='easyocr', paragraph=False)
+                ocr_result_image = ocr_images(ocr_images_request_image)
+                extracted_text_image = "\\n".join(ocr_result_image["texts"])
+
+                ocr_result.pdf_text = extracted_text_image
+                db.commit()
+
+                ocr_result.status = "LLM Reviewing"
+                db.commit()
+                logging.info(f"Updated OcrResult {ocr_result_id} status to 'LLM Reviewing' after Image OCR retry")
+                quality_score_image = await get_llm_quality_score(extracted_text_image, system_prompt)
+
+                if quality_score_image is None:
+                    logging.warning(f"LLM quality score is None after Image OCR retry for ocr_result_id: {ocr_result_id}. Setting status to 'Needs Manual Review'")
+                    ocr_result.status = "Needs Manual Review"
+                    db.commit()
+                    return
+
+                if quality_score_image < quality_threshold:
+                    logging.info(f"Quality score {quality_score_image} is still below threshold {quality_threshold} after Image OCR retry for ocr_result_id: {ocr_result_id}. Setting status to 'Needs Manual Review'")
+                    ocr_result.status = "Needs Manual Review"
+                    db.commit()
+                else:
+                    logging.info(f"Quality score {quality_score_image} is above threshold {quality_threshold} after Image OCR retry for ocr_result_id: {ocr_result_id}. Setting status to 'OCR Done'")
+                    ocr_result.status = "OCR Done"
+                    ocr_result.ocr_text = extracted_text_image
+                    db.commit()
+            else:
+                logging.info(f"Quality score {quality_score_dpi} is above threshold {quality_threshold} after DPI retry for ocr_result_id: {ocr_result_id}. Setting status to 'OCR Done'")
+                ocr_result.status = "OCR Done"
+                ocr_result.ocr_text = extracted_text_dpi
+                db.commit()
+        else:
+            logging.info(f"Quality score {quality_score} is above threshold {quality_threshold} for ocr_result_id: {ocr_result_id}. Setting status to 'OCR Done'")
+            ocr_result.status = "OCR Done"
+            ocr_result.ocr_text = extracted_text
+            db.commit()
+
+    except Exception as e:
+        logging.error(f"Error in OCR pipeline for ocr_result_id: {ocr_result_id}: {e}", exc_info=True)
+        ocr_result = db.query(OcrResult).filter(OcrResult.id == ocr_result_id).first()
+        if ocr_result:
+            ocr_result.status = "Error"
+            ocr_result.error_message = str(e)
+            db.commit()
+    finally:
+        db.close()

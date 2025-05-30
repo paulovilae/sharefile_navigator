@@ -164,190 +164,10 @@ def deploy_frontend_block_code(payload: dict, db: Session = Depends(get_db)):
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
     blocks_dir = os.path.join(project_root, 'frontend', 'src', 'blocks')
     os.makedirs(blocks_dir, exist_ok=True)
-    file_path = os.path.join(blocks_dir, f'{sanitized}.jsx')
+    file_path = os.path.abspath(os.path.join(blocks_dir, f'{sanitized}.jsx'))
     with open(file_path, 'w', encoding='utf-8', newline='') as f:
         f.write(code)
     return {"success": True, "message": f"Frontend block {block_id} code deployed.", "file_path": file_path}
-
-# --- The following endpoints are not currently used and are commented out for simplicity ---
-'''
-# Workflow endpoints
-@router.get('/workflows', response_model=List[WorkflowRead], tags=["Workflows"], summary="List all workflows", description="Returns a list of all workflows.")
-def list_workflows(db: Session = Depends(get_db)):
-    """List all workflows."""
-    return db.query(Workflow).all()
-
-@router.post('/workflow', response_model=WorkflowRead, tags=["Workflows"], summary="Create a new workflow", description="Create a new workflow.")
-def create_workflow(wf: WorkflowCreate, db: Session = Depends(get_db)):
-    """Create a new workflow."""
-    db_wf = Workflow(**wf.dict())
-    db.add(db_wf)
-    db.commit()
-    db.refresh(db_wf)
-    return db_wf
-
-@router.get('/workflow/{wf_id}', response_model=WorkflowRead, tags=["Workflows"], summary="Get a workflow by ID", description="Retrieve a workflow by its ID.")
-def get_workflow(wf_id: int, db: Session = Depends(get_db)):
-    """Get a workflow by ID."""
-    wf = db.query(Workflow).get(wf_id)
-    if not wf:
-        raise HTTPException(status_code=404, detail='Workflow not found')
-    return wf
-
-@router.put('/workflow/{wf_id}', response_model=WorkflowRead, tags=["Workflows"], summary="Update a workflow", description="Update a workflow by its ID.")
-def update_workflow(wf_id: int, wf: WorkflowCreate, db: Session = Depends(get_db)):
-    """Update a workflow by ID."""
-    db_wf = db.query(Workflow).get(wf_id)
-    if not db_wf:
-        raise HTTPException(status_code=404, detail='Workflow not found')
-    for k, v in wf.dict().items():
-        setattr(db_wf, k, v)
-    db.commit()
-    db.refresh(db_wf)
-    return db_wf
-
-@router.delete('/workflow/{wf_id}', tags=["Workflows"], summary="Delete a workflow", description="Delete a workflow by its ID.")
-def delete_workflow(wf_id: int, db: Session = Depends(get_db)):
-    """Delete a workflow by ID."""
-    db_wf = db.query(Workflow).get(wf_id)
-    if not db_wf:
-        raise HTTPException(status_code=404, detail='Workflow not found')
-    db.delete(db_wf)
-    db.commit()
-    return {"ok": True}
-
-# WorkflowBlock endpoints
-@router.get('/workflow_blocks', response_model=List[WorkflowBlockRead], tags=["Workflow Blocks"], summary="List all workflow blocks", description="Returns a list of all workflow blocks.")
-def list_workflow_blocks(db: Session = Depends(get_db)):
-    """List all workflow blocks."""
-    return db.query(WorkflowBlock).all()
-
-@router.post('/workflow_block', response_model=WorkflowBlockRead, tags=["Workflow Blocks"], summary="Create a new workflow block", description="Create a new workflow block.")
-def create_workflow_block(wb: WorkflowBlockCreate, db: Session = Depends(get_db)):
-    """Create a new workflow block."""
-    db_wb = WorkflowBlock(**wb.dict())
-    db.add(db_wb)
-    db.commit()
-    db.refresh(db_wb)
-    return db_wb
-
-@router.get('/workflow_block/{wb_id}', response_model=WorkflowBlockRead, tags=["Workflow Blocks"], summary="Get a workflow block by ID", description="Retrieve a workflow block by its ID.")
-def get_workflow_block(wb_id: int, db: Session = Depends(get_db)):
-    """Get a workflow block by ID."""
-    wb = db.query(WorkflowBlock).get(wb_id)
-    if not wb:
-        raise HTTPException(status_code=404, detail='WorkflowBlock not found')
-    return wb
-
-@router.put('/workflow_block/{wb_id}', response_model=WorkflowBlockRead, tags=["Workflow Blocks"], summary="Update a workflow block", description="Update a workflow block by its ID.")
-def update_workflow_block(wb_id: int, wb: WorkflowBlockCreate, db: Session = Depends(get_db)):
-    """Update a workflow block by ID."""
-    db_wb = db.query(WorkflowBlock).get(wb_id)
-    if not db_wb:
-        raise HTTPException(status_code=404, detail='WorkflowBlock not found')
-    for k, v in wb.dict().items():
-        setattr(db_wb, k, v)
-    db.commit()
-    db.refresh(db_wb)
-    return db_wb
-
-@router.delete('/workflow_block/{wb_id}', tags=["Workflow Blocks"], summary="Delete a workflow block", description="Delete a workflow block by its ID.")
-def delete_workflow_block(wb_id: int, db: Session = Depends(get_db)):
-    """Delete a workflow block by ID."""
-    db_wb = db.query(WorkflowBlock).get(wb_id)
-    if not db_wb:
-        raise HTTPException(status_code=404, detail='WorkflowBlock not found')
-    db.delete(db_wb)
-    db.commit()
-    return {"ok": True}
-
-# BlockExecution endpoints
-@router.get('/block_executions', response_model=List[BlockExecutionRead], tags=["Block Executions"], summary="List all block executions", description="Returns a list of all block executions.")
-def list_block_executions(db: Session = Depends(get_db)):
-    """List all block executions."""
-    return db.query(BlockExecution).all()
-
-@router.post('/block_execution', response_model=BlockExecutionRead, tags=["Block Executions"], summary="Create a new block execution", description="Create a new block execution.")
-def create_block_execution(exec: BlockExecutionCreate, db: Session = Depends(get_db)):
-    """Create a new block execution."""
-    db_exec = BlockExecution(**exec.dict())
-    db.add(db_exec)
-    db.commit()
-    db.refresh(db_exec)
-    return db_exec
-
-@router.get('/block_execution/{exec_id}', response_model=BlockExecutionRead, tags=["Block Executions"], summary="Get a block execution by ID", description="Retrieve a block execution by its ID.")
-def get_block_execution(exec_id: int, db: Session = Depends(get_db)):
-    """Get a block execution by ID."""
-    exec = db.query(BlockExecution).get(exec_id)
-    if not exec:
-        raise HTTPException(status_code=404, detail='BlockExecution not found')
-    return exec
-
-@router.put('/block_execution/{exec_id}', response_model=BlockExecutionRead, tags=["Block Executions"], summary="Update a block execution", description="Update a block execution by its ID.")
-def update_block_execution(exec_id: int, exec: BlockExecutionCreate, db: Session = Depends(get_db)):
-    """Update a block execution by ID."""
-    db_exec = db.query(BlockExecution).get(exec_id)
-    if not db_exec:
-        raise HTTPException(status_code=404, detail='BlockExecution not found')
-    for k, v in exec.dict().items():
-        setattr(db_exec, k, v)
-    db.commit()
-    db.refresh(db_exec)
-    return db_exec
-
-@router.delete('/block_execution/{exec_id}', tags=["Block Executions"], summary="Delete a block execution", description="Delete a block execution by its ID.")
-def delete_block_execution(exec_id: int, db: Session = Depends(get_db)):
-    """Delete a block execution by ID."""
-    db_exec = db.query(BlockExecution).get(exec_id)
-    if not db_exec:
-        raise HTTPException(status_code=404, detail='BlockExecution not found')
-    db.delete(db_exec)
-    db.commit()
-    return {"ok": True}
-''' 
-
-@router.post('/workflows', response_model=WorkflowRead, tags=["Workflows"], summary="Create a new workflow with blocks")
-def create_workflow_with_blocks(payload: dict, db: Session = Depends(get_db)):
-    """
-    Create a new workflow and its blocks in one request.
-    Payload example:
-    {
-        "name": "My Workflow",
-        "description": "Description",
-        "blocks": [
-            {
-                "block_template_id": 1,
-                "order": 0,
-                "config": { "param1": "value" },
-                "name_override": "SharePoint Explorer",
-                "enabled": true
-            }
-        ]
-    }
-    """
-    name = payload.get('name')
-    description = payload.get('description')
-    blocks = payload.get('blocks', [])
-    if not name or not blocks:
-        raise HTTPException(status_code=400, detail='Workflow name and at least one block are required')
-    wf = Workflow(name=name, description=description)
-    db.add(wf)
-    db.commit()
-    db.refresh(wf)
-    for idx, block in enumerate(blocks):
-        wb = WorkflowBlock(
-            workflow_id=wf.id,
-            block_template_id=block['block_template_id'],
-            order=block.get('order', idx),
-            config=block.get('config', {}),
-            name_override=block.get('name_override'),
-            enabled=block.get('enabled', True)
-        )
-        db.add(wb)
-    db.commit()
-    db.refresh(wf)
-    return wf
 
 # Sidebar Menu Category Endpoints
 @router.get('/sidebar_menu_categories', response_model=List[SidebarMenuCategoryRead], tags=["SidebarMenu"], summary="List all sidebar menu categories")
@@ -382,7 +202,7 @@ def delete_sidebar_menu_category(cat_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"ok": True}
 
-# Sidebar Menu Endpoints
+# # Sidebar Menu Endpoints
 @router.get('/sidebar_menus', response_model=List[SidebarMenuRead], tags=["SidebarMenu"], summary="List all sidebar menus")
 def list_sidebar_menus(db: Session = Depends(get_db)):
     return db.query(SidebarMenu).order_by(SidebarMenu.order).all()
@@ -415,17 +235,18 @@ def delete_sidebar_menu(menu_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"ok": True}
 
-# Sidebar Menu Import/Export
+# # Sidebar Menu Import/Export
 @router.get('/sidebar_menus/export', tags=["SidebarMenu"], summary="Export sidebar menus as JSON")
 def export_sidebar_menus(db: Session = Depends(get_db)):
     menus = db.query(SidebarMenu).order_by(SidebarMenu.order).all()
     return [SidebarMenuRead.from_orm(m) for m in menus]
 
-@router.post('/sidebar_menus/import', tags=["SidebarMenu"], summary="Import sidebar menus from JSON")
-def import_sidebar_menus(payload: List[SidebarMenuCreate], db: Session = Depends(get_db)):
-    db.query(SidebarMenu).delete()
-    for menu in payload:
-        db_menu = SidebarMenu(**menu.dict())
-        db.add(db_menu)
-    db.commit()
-    return {"ok": True} 
+# @router.post('/sidebar_menus/import', tags=["SidebarMenu"], summary="Import sidebar menus from JSON")
+# def import_sidebar_menus(payload: List[SidebarMenuCreate], db: Session = Depends(get_db)):
+#     db.query(SidebarMenu).delete()
+#     for menu in payload:
+#         db_menu = SidebarMenu(**menu.dict())
+#     db.add(db_menu)
+#     db.commit()
+#     db.refresh(db_menu)
+#     return {"ok": True}

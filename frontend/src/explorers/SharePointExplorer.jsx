@@ -5,12 +5,18 @@ import FolderIcon from '@mui/icons-material/Folder';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import GetAppIcon from '@mui/icons-material/GetApp';
 import VisibilityIcon from '@mui/icons-material/Visibility';
-import TextSnippetIcon from '@mui/icons-material/TextSnippet'; 
+import TextSnippetIcon from '@mui/icons-material/TextSnippet';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import CachedIcon from '@mui/icons-material/Cached'; // For processing states
+import CloudDownloadIcon from '@mui/icons-material/CloudDownload'; // For downloading
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline'; // For errors
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'; // For completed
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline'; // For needs_manual_review
+import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty'; // For queued/pending
 
-import { fetchOcrStatuses } from '../utils/apiUtils'; 
+import { fetchOcrStatuses, processSharePointItem } from '../utils/apiUtils';
 import { formatDate, formatFileSize } from '../utils/formattingUtils';
-import { getFileIcon, isPreviewable } from '../utils/fileUtils.jsx';
+import { getFileIcon, isPreviewable, isDigitizable } from '../utils/fileUtils.jsx';
 import GenericFileEditor from '../components/GenericFileEditor';
 
 // Helper function to get a comparable string representation of selected items
@@ -312,7 +318,67 @@ const SharePointExplorer = ({ onSelectionChange, multiSelect = true, initialPath
                 prevDetailedSelectionComparableRef.current = currentComparableSelection;
             }
         }
-    }, [selectedItems, folders, files, onSelectionChange]); // onSelectionChange is stable due to useCallback in Flow.jsx
+    }, [selectedItems, folders, files, onSelectionChange]);
+
+    const handleProcessSelectedWithOcr = async () => {
+        if (!selectedItems.length) {
+            console.warn("No items selected for OCR processing.");
+            // TODO: Show user feedback (e.g., toast notification)
+            return;
+        }
+        if (!selectedLibrary) {
+            console.error("Cannot process OCR: No library selected.");
+            // TODO: Show user feedback
+        }
+        console.log("Processing selected items with OCR:", selectedItems);
+        // TODO: Add user feedback for starting process (e.g. loading indicator, toast)
+
+        for (const idString of selectedItems) {
+            const [type, id] = idString.split(/-(.+)/);
+            let itemToProcess = null;
+            let driveId = selectedLibrary.id; // Default to selected library's drive ID
+
+            if (type === 'folder') {
+                const folder = folders.find(f => String(f.id) === id);
+                if (folder) {
+                    itemToProcess = { drive_id: driveId, item_id: folder.id, item_type: 'folder' };
+                }
+            } else if (type === 'file') {
+                const file = files.find(f => String(f.id) === id);
+                if (file) {
+                    // file object should already have its drive_id if populated correctly
+                    itemToProcess = { drive_id: file.drive_id || driveId, item_id: file.id, item_type: 'file' };
+                }
+            }
+
+            if (itemToProcess) {
+                try {
+                    console.log(`Calling processSharePointItem for:`, itemToProcess);
+                    // const response = await processSharePointItem(itemToProcess); // Use if defined in apiUtils
+                    const response = await fetch('/api/ocr/process_sharepoint_item', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(itemToProcess),
+                    });
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({ detail: "Unknown error during OCR processing." }));
+                        console.error(`Failed to process ${type} ${id}: ${response.status}`, errorData.detail);
+                        // TODO: Show specific error to user
+                    } else {
+                        const result = await response.json();
+                        console.log(`Successfully initiated processing for ${type} ${id}:`, result);
+                        // TODO: Show success feedback, maybe update item status locally or re-fetch statuses
+                    }
+                } catch (error) {
+                    console.error(`Error calling OCR processing for ${type} ${id}:`, error);
+                    // TODO: Show user feedback
+                }
+            } else {
+                console.warn(`Could not find details for selected item: ${idString}`);
+            }
+        }
+        // TODO: Add user feedback for completion of batch (or individual successes/failures)
+    };
 
     const fileTableColumns = [
         // Checkbox column is now handled by GenericFileEditor itself if `externallySelectedIds` is used
@@ -324,62 +390,131 @@ const SharePointExplorer = ({ onSelectionChange, multiSelect = true, initialPath
         )},
         { field: 'size', title: 'Size', render: (row) => formatFileSize(row.size) },
         { field: 'createdDateTime', title: 'Created', render: (row) => formatDate(row.createdDateTime || row.created) },
-        { field: 'status', title: 'Status', render: (row) => {
-            const status = fileStatuses[row.id];
-            let statusIcon = null;
-            let statusText = 'Not Processed';
-            let statusTooltip = 'No digitization steps completed yet.';
-            if (status) {
-                if (status.ocr_text) {
-                    statusIcon = <TextSnippetIcon fontSize="small" color="success"/>;
-                    statusText = 'OCR Done';
-                    statusTooltip = `OCR done: ${status.updated_at ? formatDate(status.updated_at) : ''}`;
-                } else if (status.pdf_image_path) {
-                    statusIcon = <PictureAsPdfIcon fontSize="small" color="primary"/>;
-                    statusText = 'PDF Converted';
-                    statusTooltip = `PDF converted: ${status.updated_at ? formatDate(status.updated_at) : ''}`;
-                } else if (status.status === 'error') {
-                    statusText = 'Error';
-                    statusTooltip = status.message || 'An error occurred during processing.';
+        {
+            field: 'status',
+            title: 'Status',
+            render: (row) => {
+                // Check if file is digitizable (PDF or other OCR-compatible formats)
+                if (!isDigitizable(row.name)) {
+                    return (
+                        <Tooltip title="This file type is not supported for OCR processing.">
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.disabled' }}>
+                                <Typography variant="body2" sx={{ color: 'text.disabled' }}>N/A</Typography>
+                            </Box>
+                        </Tooltip>
+                    );
                 }
-            }
-            return (
-                <Tooltip title={statusTooltip}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        {statusIcon}
-                        <Typography variant="body2">{statusText}</Typography>
-                    </Box>
-                </Tooltip>
-            );
-        }},
-        { field: 'actions', title: 'Actions', render: (row) => (
-            <Box>
-                <Tooltip title="Download">
-                    <IconButton size="small" onClick={(e) => {
-                        e.stopPropagation(); 
-                        const url = `/api/sharepoint/file_content?drive_id=${row.drive_id}&item_id=${row.id}&download=1`;
-                        const link = document.createElement('a');
-                        link.href = url;
-                        link.setAttribute('download', row.name);
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                    }}>
-                        <GetAppIcon fontSize="small" />
-                    </IconButton>
-                </Tooltip>
-                {isPreviewable(row.name) && (
-                    <Tooltip title="Preview">
-                        <IconButton size="small" onClick={(e) => {
-                             e.stopPropagation();
-                            window.open(`/api/sharepoint/file_content?drive_id=${row.drive_id}&item_id=${row.id}&preview=true`, '_blank');
-                        }}>
-                            <VisibilityIcon fontSize="small" />
-                        </IconButton>
+
+                const ocrStatusData = fileStatuses[row.id];
+                let statusIcon = null;
+                let statusText = 'Not processed';
+                let statusTooltip = 'The file has not been processed yet.';
+                let statusColor = 'text.secondary';
+
+                if (ocrStatusData && ocrStatusData.status) {
+                    const currentStatus = ocrStatusData.status;
+                    const hasImage = ocrStatusData.has_image || false;
+                    const hasText = ocrStatusData.has_text || (ocrStatusData.ocr_text && ocrStatusData.ocr_text.trim().length > 0);
+                    
+                    // Determine status based on the requirements
+                    if (currentStatus === 'completed') {
+                        if (hasText && hasImage) {
+                            statusIcon = <CheckCircleOutlineIcon fontSize="small" color="success" />;
+                            statusText = 'Text (has text + image)';
+                            statusColor = 'success.main';
+                            statusTooltip = 'The file contains both text and an image.';
+                        } else if (hasImage && !hasText) {
+                            statusIcon = <PictureAsPdfIcon fontSize="small" sx={{ color: 'info.main' }} />;
+                            statusText = 'Image (only has an image)';
+                            statusColor = 'info.main';
+                            statusTooltip = 'The file only contains an image.';
+                        } else if (hasText && !hasImage) {
+                            statusIcon = <TextSnippetIcon fontSize="small" color="success" />;
+                            statusText = 'Ready';
+                            statusColor = 'success.main';
+                            statusTooltip = 'The file has been processed and is ready for search.';
+                        } else {
+                            statusIcon = <CheckCircleOutlineIcon fontSize="small" color="success" />;
+                            statusText = 'Ready';
+                            statusColor = 'success.main';
+                            statusTooltip = 'The file has been processed and is ready for search.';
+                        }
+                    } else if (currentStatus === 'error_download' ||
+                               currentStatus === 'error_ocr_initial' ||
+                               currentStatus === 'error_pipeline' ||
+                               currentStatus === 'error_llm_logic' ||
+                               currentStatus === 'error_fetching_status' ||
+                               currentStatus === 'error_network' ||
+                               currentStatus === 'error') {
+                        statusIcon = <ErrorOutlineIcon fontSize="small" color="error" />;
+                        statusText = 'Error';
+                        statusColor = 'error.main';
+                        statusTooltip = ocrStatusData.message || `Error occurred during processing: ${currentStatus}`;
+                    } else {
+                        // For any processing states (queued, downloading, processing_ocr, etc.)
+                        statusIcon = <CachedIcon fontSize="small" sx={{ color: 'warning.main' }} />;
+                        statusText = 'Not processed';
+                        statusColor = 'warning.main';
+                        statusTooltip = 'The file is currently being processed.';
+                    }
+                } else if (ocrStatusData && ocrStatusData.ocr_text) {
+                    // Fallback for older status structure
+                    statusIcon = <TextSnippetIcon fontSize="small" color="success" />;
+                    statusText = 'Ready';
+                    statusColor = 'success.main';
+                    statusTooltip = 'The file has been processed and is ready for search.';
+                } else if (ocrStatusData && (ocrStatusData.status === 'error_fetching_status' || ocrStatusData.status === 'error_network')) {
+                    statusIcon = <ErrorOutlineIcon fontSize="small" color="error" />;
+                    statusText = 'Error';
+                    statusColor = 'error.main';
+                    statusTooltip = ocrStatusData.message || 'Error fetching status information.';
+                }
+
+                return (
+                    <Tooltip title={statusTooltip}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: statusColor }}>
+                            {statusIcon}
+                            <Typography variant="body2" sx={{ color: statusColor }}>{statusText}</Typography>
+                        </Box>
                     </Tooltip>
-                )}
-            </Box>
-        ), dialogVisible: false },
+                );
+            }
+        },
+        { 
+            field: 'actions', 
+            title: 'Actions', 
+            render: (row) => {
+                return (
+                    <Box>
+                        <Tooltip title="Download">
+                            <IconButton size="small" onClick={(e) => {
+                                e.stopPropagation(); 
+                                const url = `/api/sharepoint/file_content?drive_id=${row.drive_id}&item_id=${row.id}&download=1`;
+                                const link = document.createElement('a');
+                                link.href = url;
+                                link.setAttribute('download', row.name);
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                            }}>
+                            <GetAppIcon fontSize="small" />
+                            </IconButton>
+                        </Tooltip>
+                        {isPreviewable(row.name) && (
+                            <Tooltip title="Preview">
+                                <IconButton size="small" onClick={(e) => {
+                                     e.stopPropagation();
+                                    window.open(`/api/sharepoint/file_content?drive_id=${row.drive_id}&item_id=${row.id}&preview=true`, '_blank');
+                                }}>
+                                    <VisibilityIcon fontSize="small" />
+                                </IconButton>
+                            </Tooltip>
+                        )}
+                    </Box>
+                );
+            },
+            dialogVisible: false
+        }
     ];
 
     const currentPathName = currentFolder ? currentFolder.name : (selectedLibrary ? selectedLibrary.name : "Libraries");
@@ -399,7 +534,17 @@ const SharePointExplorer = ({ onSelectionChange, multiSelect = true, initialPath
                         {currentPathName}
                     </Typography>
                 </Box>
-                {/* Confirm selection button removed as selection is now live */}
+                {selectedItems.length > 0 && (
+                    <Button
+                        variant="contained"
+                        color="primary"
+                        size="small"
+                        onClick={handleProcessSelectedWithOcr}
+                        sx={{ ml: 2 }}
+                    >
+                        Process with OCR ({selectedItems.length})
+                    </Button>
+                )}
             </Box>
             <Divider sx={{mb:1}}/>
 

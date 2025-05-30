@@ -213,11 +213,15 @@ class OcrResultBase(BaseModel):
     ocr_image_path: Optional[str]
     ocr_json: Optional[Any]
     metrics: Optional[Any]
+    status: Optional[str] = "pending"
+
 class OcrResultCreate(OcrResultBase):
     pass
+
 class OcrResultRead(OcrResultBase):
     created_at: Optional[datetime.datetime]
     updated_at: Optional[datetime.datetime]
+    # status is inherited from OcrResultBase and will be included
     class Config:
         from_attributes = True
 
@@ -263,3 +267,6 @@ class SidebarMenuRead(SidebarMenuBase):
     category: Optional[SidebarMenuCategoryRead]
     class Config:
         from_attributes = True 
+# OcrImagesRequest
+class OcrImagesRequest(BaseModel):
+    image_paths: List[str]

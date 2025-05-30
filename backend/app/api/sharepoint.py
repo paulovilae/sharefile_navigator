@@ -1,5 +1,5 @@
 import os
-from fastapi import APIRouter, Query, Request, Response
+from fastapi import APIRouter, Query, Request, Response, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 from msal import ConfidentialClientApplication
 import requests
@@ -8,6 +8,7 @@ from cachetools import LRUCache
 import threading
 from io import BytesIO
 from datetime import datetime, timezone, timedelta
+import logging
 
 load_dotenv()
 
@@ -16,18 +17,26 @@ router = APIRouter()
 file_cache = LRUCache(maxsize=4096)
 file_cache_lock = threading.Lock()
 
+logger = logging.getLogger(__name__)
+
 def get_graph_token():
     client_id = os.getenv("CLIENT_ID")
     client_secret = os.getenv("CLIENT_SECRET")
     tenant_id = os.getenv("TENANT_ID")
+    logger.info(f"SharePoint: CLIENT_ID={client_id}, TENANT_ID={tenant_id}, SHAREPOINT_SITE={os.getenv('SHAREPOINT_SITE')}, SHAREPOINT_SITE_NAME={os.getenv('SHAREPOINT_SITE_NAME')}")
+    if not tenant_id:
+        raise ValueError("TENANT_ID environment variable not set. Please configure your SharePoint tenant ID.")
     authority = f"https://login.microsoftonline.com/{tenant_id}"
     scope = ["https://graph.microsoft.com/.default"]
-    app = ConfidentialClientApplication(client_id, authority=authority, client_credential=client_secret)
-    result = app.acquire_token_for_client(scopes=scope)
-    if "access_token" in result:
-        return result["access_token"]
-    else:
-        raise Exception("Failed to get token: " + str(result.get("error_description")))
+    try:
+        app = ConfidentialClientApplication(client_id, authority=authority, client_credential=client_secret)
+        result = app.acquire_token_for_client(scopes=scope)
+        if "access_token" in result:
+            return result["access_token"]
+        else:
+            raise Exception("Failed to get token: " + str(result.get("error_description")))
+    except Exception as e:
+        raise Exception(f"Failed to get SharePoint token. Check CLIENT_ID, CLIENT_SECRET, and TENANT_ID. Original error: {e}")
 
 def graph_get(url, token):
     headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
@@ -204,4 +213,4 @@ def list_tags():
 
 @content_router.get('/customfields')
 def list_customfields():
-    return [] 
+    return []

@@ -5,6 +5,7 @@ import SettingsPage from "./SettingsPage";
 import Space from "./Space"; // Added import for Space component
 // import DashboardPage from "./DashboardPage"; // Removed, file deleted
 import FolderIcon from '@mui/icons-material/Folder';
+import TextFieldsIcon from '@mui/icons-material/TextFields';
 import MyLayout from "./admin/MyLayout";
 import { LocalizationList, LocalizationEdit, LocalizationCreate } from './resources/localizations';
 import christusTheme, { christusDarkTheme } from './theme/christusTheme';
@@ -12,6 +13,7 @@ import defaultTheme from './theme/defaultTheme';
 import defaultDarkTheme from './theme/defaultDarkTheme';
 import BlocksPage from './resources/BlocksPage';
 import SidebarMenuEditor from './admin/SidebarMenuEditor';
+import OcrWorkflow from './components/OcrWorkflow';
 import { Route } from 'react-router-dom';
 
 const themeMap = {
@@ -84,6 +86,7 @@ export default function App() {
     >
       <CustomRoutes>
         <Route path="/admin/sidebar-menus" element={<SidebarMenuEditor />} />
+        <Route path="/ocr-workflow" element={<OcrWorkflow />} />
       </CustomRoutes>
       <Resource
         name="sharepoint/libraries"
@@ -100,6 +103,12 @@ export default function App() {
         name="settings/settings"
         options={{ label: "Settings" }}
         list={SettingsPage}
+      />
+      <Resource
+        name="ocr-workflow"
+        options={{ label: "OCR Workflow" }}
+        list={OcrWorkflow}
+        icon={TextFieldsIcon}
       />
       <Resource
         name="workflow-engine"

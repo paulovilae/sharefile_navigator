@@ -6,6 +6,7 @@ import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 
 import Flow from './flows/Flow';
 import { BLOCK_LIBRARY } from './constants/blockLibrary'; // Assuming this path is correct
+import SearchComponent from './components/SearchComponent'; // Added import for SearchComponent
 
 // Define the initial SharePoint block structure, similar to Flow.jsx
 const initialSharePointBlock = {
@@ -147,7 +148,9 @@ const Space = ({ spaceId = null }) => {
                 </Box>
             </Paper>
 
-            <Grid container spacing={2}>
+            <SearchComponent /> {/* Added SearchComponent here */}
+
+            <Grid container spacing={2} sx={{ mt: 2 }}> {/* Added margin top to space from search component */}
                 {flowInstances.map((flowConfig, index) => (
                     <Grid item xs={12} md={6} lg={4} key={flowConfig.id}> {/* Adjust grid sizing as needed */}
                         <Paper elevation={3} sx={{ p: 1.5, position: 'relative' }}>

@@ -3,6 +3,7 @@ pytesseract
 # For GPU OCR
 # torch (if using GPU)
 easyocr
+httpx
 
 # System dependencies (must be installed separately):
 # - tesseract-ocr (required for pytesseract)

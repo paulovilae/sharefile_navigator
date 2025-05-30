@@ -15,6 +15,7 @@ class OcrResult(Base):
     ocr_image_path = Column(Text, nullable=True)  # JSON string or comma-separated paths
     ocr_json = Column(JSON, nullable=True)
     metrics = Column(JSON, nullable=True)
+    status = Column(String, nullable=True, default="pending") # e.g., pending, queued, processing_ocr, llm_reviewing, retry_dpi, retry_image_ocr, completed, error, needs_manual_review
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 

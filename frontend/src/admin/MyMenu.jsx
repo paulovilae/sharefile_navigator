@@ -45,10 +45,22 @@ const MyMenu = (props) => {
 
     useEffect(() => {
         const load = async () => {
-            const menusResp = await api('/api/blocks/sidebar_menus');
+            let menusResp = [];
+            try {
+                menusResp = await api('/api/blocks/sidebar_menus');
+            } catch (e) {
+                console.error("Failed to load sidebar menus:", e);
+                // Provide a default empty array in case of error
+                menusResp = [];
+            }
             const catsResp = await api('/api/blocks/sidebar_menu_categories');
-            setMenuItems(menusResp);
-            setMenuCategories(catsResp);
+            setMenuItems(menusResp || []);
+            if (Array.isArray(catsResp)) {
+                setMenuCategories(catsResp);
+            } else {
+                console.error("Failed to load sidebar menu categories, or response was not an array:", catsResp);
+                setMenuCategories([]);
+            }
         };
         load();
     }, []);
