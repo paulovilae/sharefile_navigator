@@ -34,7 +34,19 @@ const CustomAppBar = (props) => {
                         CHRISTUS Health File Navigator
                     </Typography>
                 </Box>
-                <Box sx={{ marginLeft: 'auto' }}>
+                <Box sx={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Tooltip title="Refresh all data (clears cache)">
+                    <IconButton
+                      color="inherit"
+                      size="large"
+                      onClick={() => {
+                        console.log('[Global] Dispatching global refresh event');
+                        window.dispatchEvent(new CustomEvent('globalRefresh'));
+                      }}
+                    >
+                      <RefreshIcon />
+                    </IconButton>
+                  </Tooltip>
                   <Tooltip title="AppBar Settings (cache control)">
                     <IconButton color="inherit" size="large">
                       <SettingsIcon />

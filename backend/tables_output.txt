@@ -1,0 +1,19 @@
+Running list_sqlite_tables.py...
+Tables in ocr.db:
+- alembic_version
+- ocr_results
+- localizations
+- roles
+- settings
+- teams
+- users
+- api_tokens
+- audit_logs
+- documents
+- block_categories
+- block_templates
+- workflows
+- workflow_blocks
+- block_executions
+- sidebar_menu_categories
+- sidebar_menus

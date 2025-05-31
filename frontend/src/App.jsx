@@ -14,6 +14,8 @@ import defaultDarkTheme from './theme/defaultDarkTheme';
 import BlocksPage from './resources/BlocksPage';
 import SidebarMenuEditor from './admin/SidebarMenuEditor';
 import OcrWorkflow from './components/OcrWorkflow';
+import SharePointMetricsDemo from './components/SharePointMetricsDemo';
+import BlockMetricsDemo from './components/BlockMetricsDemo';
 import { Route } from 'react-router-dom';
 
 const themeMap = {
@@ -83,10 +85,13 @@ export default function App() {
       layout={MyLayout}
       theme={themeMap[themeKey]}
       darkTheme={darkThemeMap[themeKey]}
+      dashboard={() => <OcrWorkflow />}
     >
       <CustomRoutes>
         <Route path="/admin/sidebar-menus" element={<SidebarMenuEditor />} />
         <Route path="/ocr-workflow" element={<OcrWorkflow />} />
+        <Route path="/sharepoint-metrics" element={<SharePointMetricsDemo />} />
+        <Route path="/block-metrics" element={<BlockMetricsDemo />} />
       </CustomRoutes>
       <Resource
         name="sharepoint/libraries"

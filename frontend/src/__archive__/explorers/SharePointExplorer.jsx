@@ -13,11 +13,13 @@ import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline'; // For errors
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'; // For completed
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline'; // For needs_manual_review
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty'; // For queued/pending
+import CalendarTodayIcon from '@mui/icons-material/CalendarToday'; // For date display
 
-import { fetchOcrStatuses, processSharePointItem } from '../utils/apiUtils';
-import { formatDate, formatFileSize } from '../utils/formattingUtils';
-import { getFileIcon, isPreviewable, isDigitizable } from '../utils/fileUtils.jsx';
-import GenericFileEditor from '../components/GenericFileEditor';
+import { fetchOcrStatuses, processSharePointItem } from '../../utils/apiUtils.js';
+import { formatDate, formatFileSize, formatFullDate, formatUserName } from '../../utils/formattingUtils.js';
+import { getFileIcon, isPreviewable, isDigitizable } from '../../utils/fileUtils.jsx';
+import GenericFileEditor from '../../components/GenericFileEditor.jsx';
+import sharePointCache, { withCache } from '../../utils/cacheUtils.js';
 
 // Helper function to get a comparable string representation of selected items
 const getComparableSelection = (items) => {
@@ -27,21 +29,21 @@ const getComparableSelection = (items) => {
 };
 
 // --- ExplorerCardGrid (used by LibrariesGrid, FoldersGrid) ---
-const ExplorerCardGrid = ({ 
-    data, 
-    onCardClick, 
-    icon, 
-    cardHeight = 120, 
-    iconSize = 30,   
-    fontSize = 'caption', 
-    cardWidth = 160,  
-    isItemSelected, 
-    handleSelectItem, 
-    itemType = "item" 
+const ExplorerCardGrid = ({
+    data,
+    onCardClick,
+    icon,
+    cardHeight = 120,
+    iconSize = 30,
+    fontSize = 'caption',
+    cardWidth = 160,
+    isItemSelected,
+    handleSelectItem,
+    itemType = "item"
 }) => {
     const theme = useTheme();
     return (
-        <Grid container spacing={2} sx={{ mt: 0.5, p: 1 }}>
+        <Grid container spacing={1} sx={{ mt: 0.25, p: 0.5 }}>
             {data.map(record => {
                 const selected = itemType === "folder" ? isItemSelected(record, true) : false;
                 return (
@@ -50,8 +52,8 @@ const ExplorerCardGrid = ({
                             sx={{
                                 width: cardWidth,
                                 height: cardHeight,
-                                borderRadius: 2,
-                                boxShadow: selected ? 6 : 3,
+                                borderRadius: 1,
+                                boxShadow: selected ? 4 : 2,
                                 border: selected ? `2px solid ${theme.palette.primary.main}` : `1px solid ${theme.palette.divider}`,
                                 transition: 'box-shadow 0.2s, transform 0.2s, border 0.2s',
                                 cursor: 'pointer',
@@ -61,27 +63,36 @@ const ExplorerCardGrid = ({
                                 alignItems: 'center',
                                 position: 'relative',
                                 '&:hover': {
-                                    boxShadow: 6,
-                                    transform: 'scale(1.02)'
+                                    boxShadow: 4,
+                                    transform: 'scale(1.01)'
                                 },
                                 bgcolor: selected ? theme.palette.action.selected : 'background.paper',
                             }}
                         >
-                            {itemType === "folder" && (
+                            {itemType === "folder" && handleSelectItem && (
                                 <Checkbox
                                     checked={selected}
-                                    onChange={() => handleSelectItem(record, true)}
-                                    onClick={(e) => e.stopPropagation()} 
+                                    onChange={(e) => {
+                                        e.stopPropagation();
+                                        handleSelectItem(record, true);
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
                                     size="small"
                                     sx={{ position: 'absolute', top: 4, left: 4, zIndex: 2 }}
                                     inputProps={{ 'aria-label': `Select folder ${record.name}` }}
                                 />
                             )}
-                            <CardContent 
+                            <CardContent
                                 sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', p: 1, flexGrow: 1, width: '100%', cursor:'pointer'}}
-                                onClick={() => onCardClick(record)} 
+                                onClick={() => onCardClick(record)}
                             >
-                                {React.cloneElement(icon, { sx: { fontSize: iconSize, color: 'primary.main', mb: 1 } })}
+                                {React.cloneElement(icon, {
+                                    sx: {
+                                        fontSize: iconSize,
+                                        color: itemType === "folder" ? '#6D247A' : '#3F6A98', // CHRISTUS purple for folders, blue for libraries
+                                        mb: 1
+                                    }
+                                })}
                                 <Typography variant={fontSize} sx={{ fontWeight: 500, textAlign: 'center', wordBreak: 'break-word', width: '100%' }}>
                                     {record.name}
                                 </Typography>
@@ -105,15 +116,26 @@ const LibrariesGrid = ({ onLibraryClick }) => {
     const [loadingLibraries, setLoadingLibraries] = useState(true);
     const [error, setError] = useState(null);
 
+    // Create cached version of fetchLibraries
+    const fetchLibrariesCached = useCallback(
+        withCache(
+            async () => {
+                const response = await fetch('/api/sharepoint/libraries');
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                return response.json();
+            },
+            () => sharePointCache.generateKey('libraries'),
+            10 * 60 * 1000 // 10 minutes cache for libraries
+        ),
+        []
+    );
+
     useEffect(() => {
         const fetchLibraries = async () => {
             setLoadingLibraries(true);
             setError(null);
             try {
-                // TODO: Replace with call to fetchSharePointLibraries from apiUtils.js
-                const response = await fetch('/api/sharepoint/libraries');
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                const data = await response.json();
+                const data = await fetchLibrariesCached();
                 setLibraries(data || []);
             } catch (e) {
                 console.error("Failed to fetch libraries:", e);
@@ -124,7 +146,7 @@ const LibrariesGrid = ({ onLibraryClick }) => {
             }
         };
         fetchLibraries();
-    }, []); // This effect should run only once on mount
+    }, [fetchLibrariesCached]); // This effect should run only once on mount
 
     if (loadingLibraries) return <Box sx={{display: 'flex', justifyContent: 'center', p:2}}><CircularProgress /></Box>;
     if (error) return <Typography color="error" sx={{p:2}}>Error loading libraries: {error}</Typography>;
@@ -155,17 +177,44 @@ const SharePointExplorer = ({ onSelectionChange, multiSelect = true, initialPath
     const [selectedItems, setSelectedItems] = useState([]); // Stores "type-id", e.g., "file-item.id" or "folder-item.id"
     const prevDetailedSelectionComparableRef = useRef(getComparableSelection([]));
 
-    const fetchSharePointFoldersAPI = useCallback(async (driveId, parentId) => {
-        const response = await fetch(`/api/sharepoint/folders?drive_id=${driveId}${parentId ? `&parent_id=${parentId}` : ''}`);
-        if (!response.ok) throw new Error(`Failed to fetch folders: ${response.status}`);
-        return response.json();
-    }, []);
+    // Create cached versions of API calls
+    const fetchSharePointFoldersAPI = useCallback(
+        withCache(
+            async (driveId, parentId) => {
+                const response = await fetch(`/api/sharepoint/folders?drive_id=${driveId}${parentId ? `&parent_id=${parentId}` : ''}`);
+                if (!response.ok) throw new Error(`Failed to fetch folders: ${response.status}`);
+                return response.json();
+            },
+            (driveId, parentId) => sharePointCache.generateKey('folders', driveId, parentId),
+            5 * 60 * 1000 // 5 minutes cache for folders
+        ),
+        []
+    );
 
-    const fetchSharePointFilesAPI = useCallback(async (driveId, parentId) => {
-        const response = await fetch(`/api/sharepoint/files?drive_id=${driveId}${parentId ? `&parent_id=${parentId}` : ''}`);
-        if (!response.ok) throw new Error(`Failed to fetch files: ${response.status}`);
-        return response.json();
-    }, []);
+    const fetchSharePointFilesAPI = useCallback(
+        withCache(
+            async (driveId, parentId) => {
+                const response = await fetch(`/api/sharepoint/files?drive_id=${driveId}${parentId ? `&parent_id=${parentId}` : ''}`);
+                if (!response.ok) throw new Error(`Failed to fetch files: ${response.status}`);
+                return response.json();
+            },
+            (driveId, parentId) => sharePointCache.generateKey('files', driveId, parentId),
+            3 * 60 * 1000 // 3 minutes cache for files (shorter since they might change more frequently)
+        ),
+        []
+    );
+
+    // Create cached version of OCR status fetching
+    const fetchOcrStatusesCached = useCallback(
+        withCache(
+            async (fileIds) => {
+                return await fetchOcrStatuses(fileIds);
+            },
+            (fileIds) => sharePointCache.generateKey('statuses', null, fileIds.sort().join(',')),
+            2 * 60 * 1000 // 2 minutes cache for OCR statuses (they change frequently during processing)
+        ),
+        []
+    );
 
     useEffect(() => {
         if (!selectedLibrary) {
@@ -191,7 +240,7 @@ const SharePointExplorer = ({ onSelectionChange, multiSelect = true, initialPath
                 setFiles(filesWithDriveId);
 
                 if (filesWithDriveId.length > 0) {
-                    const statuses = await fetchOcrStatuses(filesWithDriveId.map(f => f.id));
+                    const statuses = await fetchOcrStatusesCached(filesWithDriveId.map(f => f.id));
                     setFileStatuses(statuses);
                 } else {
                     setFileStatuses({});
@@ -208,7 +257,7 @@ const SharePointExplorer = ({ onSelectionChange, multiSelect = true, initialPath
         };
 
         loadFolderContents();
-    }, [selectedLibrary, currentFolder, fetchSharePointFilesAPI, fetchSharePointFoldersAPI]);
+    }, [selectedLibrary, currentFolder, fetchSharePointFilesAPI, fetchSharePointFoldersAPI, fetchOcrStatusesCached]);
 
     useEffect(() => {
         setSelectedItems([]);
@@ -333,6 +382,9 @@ const SharePointExplorer = ({ onSelectionChange, multiSelect = true, initialPath
         console.log("Processing selected items with OCR:", selectedItems);
         // TODO: Add user feedback for starting process (e.g. loading indicator, toast)
 
+        // Collect file IDs that will be processed for cache invalidation
+        const processedFileIds = [];
+
         for (const idString of selectedItems) {
             const [type, id] = idString.split(/-(.+)/);
             let itemToProcess = null;
@@ -348,6 +400,7 @@ const SharePointExplorer = ({ onSelectionChange, multiSelect = true, initialPath
                 if (file) {
                     // file object should already have its drive_id if populated correctly
                     itemToProcess = { drive_id: file.drive_id || driveId, item_id: file.id, item_type: 'file' };
+                    processedFileIds.push(file.id);
                 }
             }
 
@@ -377,8 +430,36 @@ const SharePointExplorer = ({ onSelectionChange, multiSelect = true, initialPath
                 console.warn(`Could not find details for selected item: ${idString}`);
             }
         }
+
+        // Invalidate OCR status cache for processed files to ensure fresh data on next load
+        if (processedFileIds.length > 0) {
+            console.log('[Cache] Invalidating OCR status cache for processed files:', processedFileIds);
+            sharePointCache.invalidateByPattern('statuses');
+        }
+
         // TODO: Add user feedback for completion of batch (or individual successes/failures)
     };
+
+    // Listen for global refresh events
+    useEffect(() => {
+        const handleGlobalRefresh = () => {
+            console.log('[Cache] Global refresh triggered - clearing SharePoint cache entries');
+            
+            // Clear all SharePoint-related cache entries
+            sharePointCache.clear();
+            
+            // Force re-render by updating a state that triggers the useEffect
+            setError(null);
+            setLoading(true);
+        };
+
+        // Listen for custom refresh event
+        window.addEventListener('globalRefresh', handleGlobalRefresh);
+        
+        return () => {
+            window.removeEventListener('globalRefresh', handleGlobalRefresh);
+        };
+    }, []);
 
     const fileTableColumns = [
         // Checkbox column is now handled by GenericFileEditor itself if `externallySelectedIds` is used
@@ -389,7 +470,56 @@ const SharePointExplorer = ({ onSelectionChange, multiSelect = true, initialPath
             </Box>
         )},
         { field: 'size', title: 'Size', render: (row) => formatFileSize(row.size) },
-        { field: 'createdDateTime', title: 'Created', render: (row) => formatDate(row.createdDateTime || row.created) },
+        {
+            field: 'createdDateTime',
+            title: 'Created',
+            render: (row) => (
+                <Tooltip title={formatFullDate(row.createdDateTime || row.created)}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <CalendarTodayIcon fontSize="small" sx={{ color: '#6D247A' }} />
+                        <Typography variant="body2">
+                            {formatDate(row.createdDateTime || row.created)}
+                        </Typography>
+                    </Box>
+                </Tooltip>
+            )
+        },
+        {
+            field: 'createdBy',
+            title: 'Creator',
+            render: (row) => (
+                <Tooltip title={row.createdBy?.displayName || row.createdBy?.email || 'Unknown'}>
+                    <Typography variant="body2" sx={{ maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {formatUserName(row.createdBy)}
+                    </Typography>
+                </Tooltip>
+            )
+        },
+        {
+            field: 'lastModifiedDateTime',
+            title: 'Modified',
+            render: (row) => (
+                <Tooltip title={formatFullDate(row.lastModifiedDateTime || row.modified)}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <CalendarTodayIcon fontSize="small" sx={{ color: '#6D247A' }} />
+                        <Typography variant="body2">
+                            {formatDate(row.lastModifiedDateTime || row.modified)}
+                        </Typography>
+                    </Box>
+                </Tooltip>
+            )
+        },
+        {
+            field: 'lastModifiedBy',
+            title: 'Modified By',
+            render: (row) => (
+                <Tooltip title={row.lastModifiedBy?.displayName || row.lastModifiedBy?.email || 'Unknown'}>
+                    <Typography variant="body2" sx={{ maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {formatUserName(row.lastModifiedBy)}
+                    </Typography>
+                </Tooltip>
+            )
+        },
         {
             field: 'status',
             title: 'Status',
@@ -522,15 +652,15 @@ const SharePointExplorer = ({ onSelectionChange, multiSelect = true, initialPath
 
 
     return (
-        <Box sx={{ p: 1, border: `1px solid ${theme.palette.divider}`, borderRadius: 1 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, p:1 }}>
+        <Box sx={{ p: 0.5, border: `1px solid ${theme.palette.divider}`, borderRadius: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5, p: 0.5 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center'}}>
                     {(selectedLibrary) && (
-                        <IconButton onClick={handleBack} aria-label="back" sx={{ mr: 1 }}>
-                            <ArrowBackIcon />
+                        <IconButton onClick={handleBack} aria-label="back" sx={{ mr: 0.5, p: 0.5 }} size="small">
+                            <ArrowBackIcon fontSize="small" />
                         </IconButton>
                     )}
-                    <Typography variant="h6" component="div">
+                    <Typography variant="subtitle1" component="div" sx={{ fontWeight: 'bold' }}>
                         {currentPathName}
                     </Typography>
                 </Box>
@@ -540,16 +670,16 @@ const SharePointExplorer = ({ onSelectionChange, multiSelect = true, initialPath
                         color="primary"
                         size="small"
                         onClick={handleProcessSelectedWithOcr}
-                        sx={{ ml: 2 }}
+                        sx={{ ml: 1, py: 0.25, px: 1 }}
                     >
                         Process with OCR ({selectedItems.length})
                     </Button>
                 )}
             </Box>
-            <Divider sx={{mb:1}}/>
+            <Divider sx={{mb: 0.5}}/>
 
-            {loading && <Box sx={{display: 'flex', justifyContent: 'center', p:2}}><CircularProgress /></Box>}
-            {error && <Typography color="error" sx={{p:2}}>Error: {error}</Typography>}
+            {loading && <Box sx={{display: 'flex', justifyContent: 'center', p: 1}}><CircularProgress size={24} /></Box>}
+            {error && <Typography color="error" sx={{p: 1, fontSize: '0.875rem'}}>Error: {error}</Typography>}
 
             {!loading && !error && (
                 <>
@@ -558,8 +688,8 @@ const SharePointExplorer = ({ onSelectionChange, multiSelect = true, initialPath
                     ) : (
                         <Box>
                             {folders.length > 0 && (
-                                <Box mb={1}>
-                                    <Typography variant="subtitle2" gutterBottom sx={{pl:1, fontWeight: 'bold'}}>Folders</Typography>
+                                <Box mb={0.5}>
+                                    <Typography variant="body2" gutterBottom sx={{pl: 0.5, fontWeight: 'bold', mb: 0.5}}>Folders</Typography>
                                     <ExplorerCardGrid
                                         data={folders}
                                         onCardClick={handleFolderClick}
@@ -568,26 +698,26 @@ const SharePointExplorer = ({ onSelectionChange, multiSelect = true, initialPath
                                         handleSelectItem={handleSelectItem}
                                         itemType="folder"
                                     />
-                                    <Divider sx={{mt:1}} />
+                                    <Divider sx={{mt: 0.5}} />
                                 </Box>
                             )}
                             {files.length > 0 && (
-                                <Box mt={1}>
-                                     <Typography variant="subtitle2" gutterBottom sx={{pl:1, fontWeight: 'bold'}}>Files</Typography>
+                                <Box mt={0.5}>
+                                     <Typography variant="body2" gutterBottom sx={{pl: 0.5, fontWeight: 'bold', mb: 0.5}}>Files</Typography>
                                     <GenericFileEditor
                                         data={files}
                                         columns={fileTableColumns}
                                         externallySelectedIds={externallySelectedFileIds}
                                         onExternalSelectionChange={handleFileSelectionChange}
                                         // Disable internal add/edit/delete for browsing
-                                        onAddRow={null} 
+                                        onAddRow={null}
                                         onRemoveRow={null}
                                         onUpdateRow={null}
                                     />
                                 </Box>
                             )}
                             {folders.length === 0 && files.length === 0 && !loading && (
-                                <Typography color="text.secondary" sx={{p:2, textAlign:'center'}}>No items in this location.</Typography>
+                                <Typography color="text.secondary" sx={{p: 1, textAlign:'center', fontSize: '0.875rem'}}>No items in this location.</Typography>
                             )}
                         </Box>
                     )}

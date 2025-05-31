@@ -178,8 +178,8 @@ const SharePointMUIFileExplorer = () => {
   const [ocrError, setOcrError] = React.useState(null);
   const [tab, setTab] = React.useState(0);
   const [activeStep, setActiveStep] = React.useState(0);
-  const [expandedSteps, setExpandedSteps] = React.useState([true, false, false]);
-  const steps = ['PDF Conversion', 'OCR', 'Postprocessing'];
+  const [expandedSteps, setExpandedSteps] = React.useState([true, false]);
+  const steps = ['OCR', 'Postprocessing'];
   const [preprocessingDone, setPreprocessingDone] = React.useState(false);
   const [ocrDone, setOcrDone] = React.useState(false);
   const [extractedTexts, setExtractedTexts] = React.useState([]); // array of text per page

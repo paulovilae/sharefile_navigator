@@ -34,17 +34,35 @@ const MultiLevelMenuItem = ({ item, level, onMenuClick }) => {
                 primaryText={item.label}
                 leftIcon={item.icon}
                 onClick={onMenuClick}
-                style={{ paddingLeft: 16 + level * 16 }}
+                style={{
+                    paddingLeft: 4 + level * 8,
+                    paddingTop: 4,
+                    paddingBottom: 4,
+                    paddingRight: 4,
+                    minHeight: 32
+                }}
             />
         );
     }
     // Section with children
     return (
         <>
-            <ListItem button onClick={() => setOpen((o) => !o)} style={{ paddingLeft: 16 + level * 16 }}>
-                {item.icon && <ListItemIcon>{item.icon}</ListItemIcon>}
-                <ListItemText primary={item.label} />
-                {open ? <ExpandLess /> : <ExpandMore />}
+            <ListItem
+                button
+                onClick={() => setOpen((o) => !o)}
+                style={{
+                    paddingLeft: 8 + level * 12,
+                    paddingTop: 6,
+                    paddingBottom: 6,
+                    minHeight: 36
+                }}
+            >
+                {item.icon && <ListItemIcon sx={{ minWidth: 32 }}>{item.icon}</ListItemIcon>}
+                <ListItemText
+                    primary={item.label}
+                    primaryTypographyProps={{ fontSize: '0.875rem' }}
+                />
+                {open ? <ExpandLess fontSize="small" /> : <ExpandMore fontSize="small" />}
             </ListItem>
             <Collapse in={open} timeout="auto" unmountOnExit>
                 <MultiLevelMenu items={item.children} level={level + 1} onMenuClick={onMenuClick} />

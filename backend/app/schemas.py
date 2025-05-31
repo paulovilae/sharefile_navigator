@@ -270,3 +270,37 @@ class SidebarMenuRead(SidebarMenuBase):
 # OcrImagesRequest
 class OcrImagesRequest(BaseModel):
     image_paths: List[str]
+
+# Block Execution Update Schema
+class BlockExecutionUpdate(BaseModel):
+    status: Optional[str] = None
+    logs: Optional[str] = None
+    error: Optional[str] = None
+    result: Optional[Any] = None
+
+# Block Execution Response Schema
+class BlockExecutionResponse(BaseModel):
+    id: int
+    workflow_block_id: int
+    user_id: Optional[int]
+    status: str
+    started_at: Optional[datetime.datetime]
+    finished_at: Optional[datetime.datetime]
+    logs: Optional[str]
+    error: Optional[str]
+    result: Optional[Any]
+    
+    class Config:
+        from_attributes = True
+
+# Block Metrics Response Schema
+class BlockMetricsResponse(BaseModel):
+    period_days: int
+    total_executions: int
+    successful_executions: int
+    failed_executions: int
+    success_rate: float
+    average_execution_time_seconds: float
+    block_type_distribution: dict
+    daily_execution_counts: dict
+    interaction_metrics: dict

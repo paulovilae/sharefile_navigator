@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
     Box,
     Typography,
@@ -27,7 +27,9 @@ import {
     NavigateNext as NavigateNextIcon
 } from '@mui/icons-material';
 
-import SharePointExplorer from '../explorers/SharePointExplorer';
+import SharePointExplorer from '../__archive__/explorers/SharePointExplorer'; // Updated import
+// import SharePointExplorerBlock from '../__archive__/SharePointExplorerBlock'; // Old import
+import OcrProcessingBlock from './blocks/OcrProcessingBlock'; // New import
 import { blockTemplate } from '../theme/blockTemplate';
 
 const OcrWorkflow = () => {
@@ -36,12 +38,42 @@ const OcrWorkflow = () => {
     
     // State for workflow steps
     const [currentStep, setCurrentStep] = useState(0);
-    const [expandedSteps, setExpandedSteps] = useState([true, false, false, false, false, false]);
+    const [expandedSteps, setExpandedSteps] = useState([]);
     
     // State for SharePoint selection
     const [selectedFiles, setSelectedFiles] = useState([]);
+
+    useEffect(() => {
+        const fetchBlockTemplates = async () => {
+            try {
+                const response = await axios.get('/api/block_templates');
+                setBlockTemplates(response.data);
+                setExpandedSteps(Array(response.data.length).fill(false));
+            } catch (error) {
+                console.error("Error fetching block templates:", error);
+            }
+        };
+
+        fetchBlockTemplates();
+    }, []);
     const [settingsExpanded, setSettingsExpanded] = useState(false);
-    const [metricsExpanded, setMetricsExpanded] = useState(false);
+    // const [metricsExpanded, setMetricsExpanded] = useState(false); // Already commented out, ensuring it stays this way or is removed
+    
+    // State for block executions
+    const [sharePointExecution, setSharePointExecution] = useState(null);
+    const [ocrExecution, setOcrExecution] = useState(null);
+
+    // Handle SharePoint block execution updates
+    const handleSharePointUpdate = useCallback((update) => {
+        console.log('Workflow: SharePoint block update:', update);
+        setSharePointExecution(prev => ({ ...prev, ...update }));
+    }, []);
+
+    // Handle OCR block execution updates
+    const handleOcrUpdate = useCallback((update) => {
+        console.log('Workflow: OCR block update:', update);
+        setOcrExecution(prev => ({ ...prev, ...update }));
+    }, []);
     
     // Workflow step definitions
     const workflowSteps = [
@@ -51,43 +83,30 @@ const OcrWorkflow = () => {
             icon: <FolderOpenIcon />,
             description: 'Select PDF files or directories from SharePoint',
             component: 'sharepoint'
-        },
-        {
-            id: 'pdf-conversion',
-            title: 'PDF Conversion',
-            icon: <PictureAsPdfIcon />,
-            description: 'Convert and prepare PDF files for OCR processing',
-            component: 'pdf-conversion'
-        },
-        {
-            id: 'ocr-processing',
-            title: 'OCR Processing',
-            icon: <TextFieldsIcon />,
-            description: 'Extract text content from PDF files',
-            component: 'ocr'
-        },
-        {
-            id: 'quality-test',
-            title: 'Quality Test',
-            icon: <AssessmentIcon />,
-            description: 'Validate OCR results and check quality',
-            component: 'quality'
-        },
-        {
-            id: 'save-results',
-            title: 'Save Results',
-            icon: <SaveIcon />,
-            description: 'Save processed OCR results to database',
-            component: 'save'
-        },
-        {
-            id: 'next-pdf',
-            title: 'Next PDF',
-            icon: <NavigateNextIcon />,
-            description: 'Process next PDF in queue',
-            component: 'next'
         }
     ];
+
+    const [selectedBlock, setSelectedBlock] = useState(null);
+    const [blockTemplates, setBlockTemplates] = useState([]);
+
+    useEffect(() => {
+        const fetchBlockTemplates = async () => {
+            try {
+                const response = await axios.get('/api/block_templates');
+                setBlockTemplates(response.data);
+            } catch (error) {
+                console.error("Error fetching block templates:", error);
+            }
+        };
+
+        fetchBlockTemplates();
+    }, []);
+
+    const [blocks, setBlocks] = useState([]);
+
+    useEffect(() => {
+        setBlocks(blockTemplates);
+    }, [blockTemplates]);
 
     const handleSelectionChange = useCallback((selectedItems) => {
         console.log('SharePoint selection changed:', selectedItems);
@@ -95,9 +114,9 @@ const OcrWorkflow = () => {
     }, []);
 
     const handleNextStep = () => {
-        if (currentStep < workflowSteps.length - 1) {
+        if (currentStep < blocks.length - 1) {
             // Collapse current step and expand next step
-            const newExpandedSteps = [...expandedSteps];
+            const newExpandedSteps = Array(blocks.length).fill(false);
             newExpandedSteps[currentStep] = false;
             newExpandedSteps[currentStep + 1] = true;
             setExpandedSteps(newExpandedSteps);
@@ -106,7 +125,7 @@ const OcrWorkflow = () => {
     };
 
     const handleStepClick = (stepIndex) => {
-        const newExpandedSteps = [...expandedSteps];
+        const newExpandedSteps = Array(blocks.length).fill(false);
         newExpandedSteps[stepIndex] = !newExpandedSteps[stepIndex];
         setExpandedSteps(newExpandedSteps);
         setCurrentStep(stepIndex);
@@ -121,7 +140,6 @@ const OcrWorkflow = () => {
                             onSelectionChange={handleSelectionChange}
                             multiSelect={true}
                         />
-                        
                         {/* Selection Summary */}
                         {selectedFiles.length > 0 && (
                             <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
@@ -146,13 +164,13 @@ const OcrWorkflow = () => {
                 return (
                     <Box>
                         <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <PictureAsPdfIcon />
-                            PDF Conversion Settings
+                            {/* <PictureAsPdfIcon />
+                            PDF Conversion Settings */}
                         </Typography>
                         
                         <Box sx={{ p: 3, bgcolor: 'grey.50', borderRadius: 1, mb: 2 }}>
                             <Typography variant="body1" color="text.secondary" gutterBottom>
-                                PDF Conversion settings and metrics will go here.
+                                Preprocessing settings and metrics will go here.
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
                                 This section will include:
@@ -206,62 +224,12 @@ const OcrWorkflow = () => {
             case 'ocr':
                 return (
                     <Box>
-                        <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <TextFieldsIcon />
-                            OCR Processing Settings
-                        </Typography>
-                        
-                        <Box sx={{ p: 3, bgcolor: 'grey.50', borderRadius: 1, mb: 2 }}>
-                            <Typography variant="body1" color="text.secondary" gutterBottom>
-                                OCR processing settings and metrics will go here.
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                                This section will include:
-                            </Typography>
-                            <Box component="ul" sx={{ mt: 1, pl: 2 }}>
-                                <Typography component="li" variant="body2" color="text.secondary">
-                                    OCR engine selection (Tesseract, Azure, AWS)
-                                </Typography>
-                                <Typography component="li" variant="body2" color="text.secondary">
-                                    Language detection and configuration
-                                </Typography>
-                                <Typography component="li" variant="body2" color="text.secondary">
-                                    Text extraction confidence thresholds
-                                </Typography>
-                                <Typography component="li" variant="body2" color="text.secondary">
-                                    Processing progress and real-time metrics
-                                </Typography>
-                            </Box>
-                        </Box>
-
-                        {/* Placeholder for OCR processing metrics */}
-                        <Box sx={{ p: 2, border: '1px dashed', borderColor: 'grey.300', borderRadius: 1 }}>
-                            <Typography variant="subtitle2" gutterBottom>
-                                OCR Processing Metrics (Placeholder)
-                            </Typography>
-                            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2 }}>
-                                <Box>
-                                    <Typography variant="body2" color="text.secondary">
-                                        Engine: Tesseract 5.0
-                                    </Typography>
-                                </Box>
-                                <Box>
-                                    <Typography variant="body2" color="text.secondary">
-                                        Language: Auto-detect
-                                    </Typography>
-                                </Box>
-                                <Box>
-                                    <Typography variant="body2" color="text.secondary">
-                                        Confidence Threshold: 85%
-                                    </Typography>
-                                </Box>
-                                <Box>
-                                    <Typography variant="body2" color="text.secondary">
-                                        Processing Mode: Batch
-                                    </Typography>
-                                </Box>
-                            </Box>
-                        </Box>
+                        <OcrProcessingBlock
+                            config={{}} // Add any specific config if needed
+                            onExecutionUpdate={handleOcrUpdate}
+                            // Pass selectedFiles as input if OcrProcessingBlock expects it
+                            // inputFiles={selectedFiles}
+                        />
                     </Box>
                 );
             case 'quality':
@@ -482,26 +450,7 @@ const OcrWorkflow = () => {
         </Accordion>
     );
 
-    const renderMetricsPanel = () => (
-        <Accordion 
-            expanded={metricsExpanded} 
-            onChange={() => setMetricsExpanded(!metricsExpanded)}
-            sx={{ ...blockStyles.accordion, mb: 2 }}
-        >
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <AssessmentIcon fontSize="small" />
-                    <Typography variant="subtitle2">Metrics</Typography>
-                </Box>
-            </AccordionSummary>
-            <AccordionDetails>
-                <Typography variant="body2" color="text.secondary">
-                    Processing metrics and statistics will be displayed here.
-                </Typography>
-                {/* TODO: Add actual metrics display */}
-            </AccordionDetails>
-        </Accordion>
-    );
+    // const renderMetricsPanel = () => ( ... ); // Entire function removed
 
     return (
         <Box sx={{ p: 2, maxWidth: 1200, mx: 'auto' }}>
@@ -512,17 +461,17 @@ const OcrWorkflow = () => {
             {/* Progress indicator */}
             <Box sx={{ mb: 3 }}>
                 <Typography variant="body2" color="text.secondary" gutterBottom>
-                    Step {currentStep + 1} of {workflowSteps.length}
+                    Step {currentStep + 1} of {blocks.length}
                 </Typography>
-                <LinearProgress 
-                    variant="determinate" 
-                    value={(currentStep + 1) / workflowSteps.length * 100}
+                <LinearProgress
+                    variant="determinate"
+                    value={(currentStep + 1) / blocks.length * 100}
                     sx={{ height: 8, borderRadius: 4 }}
                 />
             </Box>
 
             {/* Workflow Steps */}
-            {workflowSteps.map((step, index) => (
+            {blocks.map((step, index) => (
                 <Card
                     key={step.id}
                     sx={{
@@ -579,8 +528,8 @@ const OcrWorkflow = () => {
                                 {/* Main Content */}
                                 {renderStepContent(step)}
                                 
-                                {/* Metrics Panel (only for first step) */}
-                                {index === 0 && renderMetricsPanel()}
+                                {/* Metrics Panel (only for first step) - REMOVED */}
+                                {/* {index === 0 && renderMetricsPanel()} */}
                                 
                                 {/* Next Step Button */}
                                 {index === currentStep && index < workflowSteps.length - 1 && (

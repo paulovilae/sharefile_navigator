@@ -34,6 +34,11 @@ const api = async (url, method = 'GET', body) => {
     headers: { 'Content-Type': 'application/json' },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
+  
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+  }
+  
   return res.json();
 };
 

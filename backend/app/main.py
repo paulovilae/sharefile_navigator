@@ -9,7 +9,8 @@ from app.api import users
 from app.api import activity
 from app.api.sharepoint import content_router
 from app.api import settings
-from app.api.blocks import router as blocks_router
+from app.routers.blocks import router as blocks_router
+from app.api import cache
 
 
 
@@ -37,6 +38,7 @@ app.include_router(activity.router, prefix="/api/notifications/activity", tags=[
 app.include_router(content_router, prefix="/api/content/files", tags=["content"])
 app.include_router(settings.router, prefix="/api/settings", tags=["settings"])
 app.include_router(blocks_router, prefix="/api/blocks")
+app.include_router(cache.router, prefix="/api/cache", tags=["cache"])
 
 @app.get("/health")
 def health_check():

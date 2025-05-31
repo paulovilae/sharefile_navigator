@@ -32,6 +32,7 @@ import datetime
 import json
 from app.api.sharepoint import get_graph_token, list_files as list_sharepoint_files_in_folder, get_file_content as get_sharepoint_file_content
 from app.utils.llm_utils import get_llm_quality_score
+from app.utils.cache_utils import cache_ocr_result, cache_preprocessing_result, generate_cache_key, save_file_cache, load_file_cache
 
 DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///ocr.db')
 
@@ -292,6 +293,7 @@ def pdf_to_images(pdf_path, dpi: Optional[int] = None):
     return images
 
 @router.post("/preprocess")
+@cache_preprocessing_result
 def preprocess(req: PreprocessRequest):
     """
     Preprocess a PDF file: convert to images and extract embedded text.
@@ -414,6 +416,7 @@ def serve_image(path: str):
     return FileResponse(image_path, media_type=mimetypes.guess_type(image_path)[0] or 'image/png')
 
 @router.post('/images')
+@cache_ocr_result
 def ocr_images(req: OcrImagesRequest):
     """
     Perform OCR on a list of images.
@@ -463,16 +466,26 @@ async def run_ocr_pipeline(drive_id: str, item_id: str, ocr_result_file_id: str)
         db.commit()
         logging.info(f"Updated OcrResult {ocr_result_file_id} status to 'Processing OCR'")
 
-        # 1. Perform initial OCR
-        file_content = get_sharepoint_file_content(drive_id=drive_id, item_id=item_id)
-        if file_content and file_content.body:
-            pdf_data = base64.b64encode(file_content.body).decode('utf-8')
+        # 1. Perform initial OCR with file caching
+        cache_key = generate_cache_key("sharepoint_file", drive_id, item_id)
+        cached_file_data = load_file_cache(cache_key, "sharepoint_files")
+        
+        if cached_file_data:
+            logging.info(f"Using cached file data for item_id: {item_id}")
+            pdf_data = base64.b64encode(cached_file_data).decode('utf-8')
         else:
-            logging.error(f"Failed to retrieve file content for item_id: {item_id}")
-            ocr_result.status = "Error"
-            ocr_result.error_message = "Failed to retrieve file content from SharePoint."
-            db.commit()
-            return
+            file_content = get_sharepoint_file_content(drive_id=drive_id, item_id=item_id)
+            if file_content and file_content.body:
+                # Cache the file data
+                save_file_cache(cache_key, file_content.body, "sharepoint_files")
+                pdf_data = base64.b64encode(file_content.body).decode('utf-8')
+                logging.info(f"Cached file data for item_id: {item_id}")
+            else:
+                logging.error(f"Failed to retrieve file content for item_id: {item_id}")
+                ocr_result.status = "Error"
+                ocr_result.error_message = "Failed to retrieve file content from SharePoint."
+                db.commit()
+                return
 
         preprocess_request = PreprocessRequest(
             file_id=item_id,

@@ -2,8 +2,10 @@ import os
 from typing import Optional
 
 import httpx
+from app.utils.cache_utils import cache_llm_score
 
 
+@cache_llm_score
 async def get_llm_quality_score(text: str, system_prompt: str) -> Optional[float]:
     '''
     Connects to either Gemini or Ollama based on configuration, calls the LLM with the extracted text

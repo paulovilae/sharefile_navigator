@@ -4,6 +4,7 @@ import SidebarMenuEditor from './admin/SidebarMenuEditor';
 import SidebarMenuCategoryEditor from './admin/SidebarMenuCategoryEditor';
 import SidebarMenuItemEditor from './admin/SidebarMenuItemEditor';
 import GenericFileEditor from './components/GenericFileEditor';
+import CacheManagement from './components/CacheManagement';
 
 const themeOptions = [
   { value: 'christus', label: 'CHRISTUS Health' },
@@ -18,6 +19,11 @@ const api = async (url, method = 'GET', body) => {
     headers: { 'Content-Type': 'application/json' },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
+  
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+  }
+  
   return res.json();
 };
 
@@ -70,6 +76,7 @@ const SettingsPage = () => {
       <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 3 }}>
         <Tab label="General" />
         <Tab label="Theme" />
+        <Tab label="Cache" />
         <Tab label="Localizations" />
         <Tab label="Menu Categories" />
         <Tab label="Menu Items" />
@@ -108,18 +115,21 @@ const SettingsPage = () => {
         </Box>
       )}
       {tab === 2 && (
+        <CacheManagement />
+      )}
+      {tab === 3 && (
         <Box>
           <Typography variant="h6" sx={{ mb: 2 }}>Localizations</Typography>
           <Typography color="text.secondary">(Localization settings go here.)</Typography>
         </Box>
       )}
-      {tab === 3 && (
+      {tab === 4 && (
         <Box>
           <Typography variant="h6" sx={{ mb: 2 }}>Menu Categories</Typography>
           <SidebarMenuCategoryEditor />
         </Box>
       )}
-      {tab === 4 && (
+      {tab === 5 && (
         <Box>
           <Typography variant="h6" sx={{ mb: 2 }}>Menu Items</Typography>
           <SidebarMenuItemEditor />

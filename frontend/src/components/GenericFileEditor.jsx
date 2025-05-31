@@ -13,11 +13,18 @@ const StyledTableRow = styled(TableRow)(({ theme }) => ({
   '&:last-child td, &:last-child th': {
     border: 0,
   },
-  height: '20px', // Reduced row height to 50%
+  height: '32px', // Compact row height
+  '& td': {
+    padding: '4px 8px', // Reduced cell padding
+  },
 }));
 
 const StyledTableHeadRow = styled(TableRow)(({ theme }) => ({
-  height: '40px', // Original row height for header
+  height: '36px', // Compact header height
+  '& th': {
+    padding: '6px 8px', // Reduced header cell padding
+    fontWeight: 600,
+  },
 }));
 
 export default function GenericFileEditor({ data, columns, onAddRow, onRemoveRow, onUpdateRow, onReorder, externallySelectedIds, onExternalSelectionChange }) {
@@ -84,7 +91,7 @@ export default function GenericFileEditor({ data, columns, onAddRow, onRemoveRow
   const handleSelectAllRows = (event) => {
     let newSelectedIds;
     if (event.target.checked) {
-      newSelectedIds = filteredData.map(row => row.id); // Select all from currently filtered data
+      newSelectedIds = displayData.map(row => row.id); // Select all from currently displayed data
     } else {
       newSelectedIds = [];
     }
@@ -195,6 +202,20 @@ export default function GenericFileEditor({ data, columns, onAddRow, onRemoveRow
     });
   }, [rows, searchTerm, selectedColumns]);
 
+  // Filter data to only show digitizable files (PDFs) if this is for file selection
+  const digitizableData = React.useMemo(() => {
+    if (externallySelectedIds !== undefined) {
+      // This is being used for external selection (like SharePoint), filter for PDFs only
+      return filteredData.filter(row => {
+        const ext = row.name?.split('.').pop()?.toLowerCase();
+        return ['pdf'].includes(ext);
+      });
+    }
+    return filteredData;
+  }, [filteredData, externallySelectedIds]);
+
+  const displayData = externallySelectedIds !== undefined ? digitizableData : filteredData;
+
   const handleDragStart = (row) => {
     setDraggedRow(row);
   };
@@ -224,12 +245,12 @@ export default function GenericFileEditor({ data, columns, onAddRow, onRemoveRow
 
   return (
     <Box sx={{ width: '100%' }}>
-      <Paper sx={{ width: '100%', mb: 2 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', p: 1 }}>
+      <Paper sx={{ width: '100%', mb: 1 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', p: 0.5 }}>
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
             <Tooltip title="Select Columns">
-              <IconButton onClick={handleColumnClick}>
-                <ViewColumnIcon />
+              <IconButton onClick={handleColumnClick} size="small">
+                <ViewColumnIcon fontSize="small" />
               </IconButton>
             </Tooltip>
             <Popover
@@ -263,38 +284,39 @@ export default function GenericFileEditor({ data, columns, onAddRow, onRemoveRow
               </Paper>
             </Popover>
           </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <TextField
               label="Search"
               variant="outlined"
               size="small"
               value={searchTerm}
               onChange={handleSearchChange}
+              sx={{ minWidth: 200 }}
               InputProps={{
-                startAdornment: <SearchIcon />,
+                startAdornment: <SearchIcon fontSize="small" />,
               }}
             />
-            <Box>
+            <Box sx={{ display: 'flex' }}>
               <Tooltip title="Add">
-                <IconButton onClick={handleAddRow}>
-                  <AddIcon />
+                <IconButton onClick={handleAddRow} size="small">
+                  <AddIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
               <Tooltip title="Delete">
                 <span>
-                  <IconButton onClick={handleRemoveRow} disabled={currentSelectedIds.length === 0}>
-                    <DeleteIcon />
+                  <IconButton onClick={handleRemoveRow} disabled={currentSelectedIds.length === 0} size="small">
+                    <DeleteIcon fontSize="small" />
                   </IconButton>
                 </span>
               </Tooltip>
               <Tooltip title="Download JSON">
-                <IconButton onClick={handleDownloadJson}>
-                  <CloudDownloadIcon />
+                <IconButton onClick={handleDownloadJson} size="small">
+                  <CloudDownloadIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
               <Tooltip title="Upload JSON">
-                <IconButton component="label">
-                  <CloudUploadIcon />
+                <IconButton component="label" size="small">
+                  <CloudUploadIcon fontSize="small" />
                   <input type="file" accept=".json" onChange={handleUploadJson} hidden />
                 </IconButton>
               </Tooltip>
@@ -305,16 +327,16 @@ export default function GenericFileEditor({ data, columns, onAddRow, onRemoveRow
           <Table
             sx={{ minWidth: 750 }}
             aria-labelledby="tableTitle"
-            size={'medium'}
+            size={'small'}
           >
             <TableHead>
               <StyledTableHeadRow>
                 <TableCell></TableCell>
                       <TableCell padding="checkbox">
                         <Checkbox
-                          checked={filteredData.length > 0 && currentSelectedIds.length === filteredData.length}
+                          checked={displayData.length > 0 && currentSelectedIds.length === displayData.length}
                           onChange={handleSelectAllRows}
-                          indeterminate={currentSelectedIds.length > 0 && currentSelectedIds.length < filteredData.length}
+                          indeterminate={currentSelectedIds.length > 0 && currentSelectedIds.length < displayData.length}
                           size="small" // Apply consistent size
                           color="primary" // Apply consistent color
                         />
@@ -339,7 +361,7 @@ export default function GenericFileEditor({ data, columns, onAddRow, onRemoveRow
                     </StyledTableHeadRow>
                   </TableHead>
                   <TableBody>
-                    {filteredData.map((row, index) => {
+                    {displayData.map((row, index) => {
                       const isItemSelected = isRowSelected(row.id);
                       const labelId = `enhanced-table-checkbox-${row.id}`;
 
@@ -357,9 +379,9 @@ export default function GenericFileEditor({ data, columns, onAddRow, onRemoveRow
                           onDragEnter={() => handleDragEnter(row)}
                           onDragEnd={handleDragEnd}
                         >
-                          <TableCell>
-                            <IconButton aria-label="drag" onClick={(event) => event.stopPropagation()}>
-                              <MenuIcon />
+                          <TableCell sx={{ width: 40 }}>
+                            <IconButton aria-label="drag" onClick={(event) => event.stopPropagation()} size="small">
+                              <MenuIcon fontSize="small" />
                             </IconButton>
                           </TableCell>
                           <TableCell padding="checkbox">
@@ -378,10 +400,10 @@ export default function GenericFileEditor({ data, columns, onAddRow, onRemoveRow
                                 {column.render ? column.render(row, column) : row[column.field]}
                               </TableCell>
                             ))}
-                          <TableCell>
+                          <TableCell sx={{ width: 60 }}>
                             <Tooltip title="Edit">
-                              <IconButton onClick={() => handleUpdateRow(row)}>
-                                <EditIcon />
+                              <IconButton onClick={() => handleUpdateRow(row)} size="small">
+                                <EditIcon fontSize="small" />
                               </IconButton>
                             </Tooltip>
                           </TableCell>

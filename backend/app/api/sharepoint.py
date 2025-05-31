@@ -4,18 +4,14 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from msal import ConfidentialClientApplication
 import requests
 from dotenv import load_dotenv
-from cachetools import LRUCache
-import threading
 from io import BytesIO
 from datetime import datetime, timezone, timedelta
 import logging
+from app.utils.cache_utils import cache_sharepoint_file, generate_cache_key
 
 load_dotenv()
 
 router = APIRouter()
-
-file_cache = LRUCache(maxsize=4096)
-file_cache_lock = threading.Lock()
 
 logger = logging.getLogger(__name__)
 
@@ -72,15 +68,8 @@ def list_libraries(response: Response):
     return libraries
 
 @router.get("/folders")
+@cache_sharepoint_file
 def list_folders(drive_id: str, parent_id: str = None):
-    cache_key = (drive_id, parent_id or 'root', 'folders')
-    # Try to use cache only if all folders are older than 1 day
-    with file_cache_lock:
-        cached_result = file_cache.get(cache_key)
-    if cached_result:
-        # Check if all folders are still older than 1 day
-        if all(is_older_than_one_day(f.get('modified')) for f in cached_result):
-            return JSONResponse(cached_result)
     try:
         token = get_graph_token()
         if parent_id:
@@ -96,13 +85,9 @@ def list_folders(drive_id: str, parent_id: str = None):
             }
             for i in items.get("value", []) if "folder" in i
         ]
-        # Only cache if all folders are older than 1 day
-        if folders and all(is_older_than_one_day(f.get('modified')) for f in folders):
-            with file_cache_lock:
-                file_cache[cache_key] = folders
         return JSONResponse(folders)
     except Exception as e:
-        print("Error in list_folders:", str(e))
+        logger.error(f"Error in list_folders: {e}", exc_info=True)
         return JSONResponse({"error": str(e)}, status_code=500)
 
 @router.get("/files")
@@ -148,49 +133,36 @@ def list_files(
     return JSONResponse(files)
 
 @router.get("/file_content")
+@cache_sharepoint_file
 def get_file_content(drive_id: str, item_id: str, parent_id: str = None, preview: bool = False, download: bool = False):
-    # Always fetch metadata to check modified date
     try:
         token = get_graph_token()
         meta_url = f"https://graph.microsoft.com/v1.0/drives/{drive_id}/items/{item_id}"
         meta = graph_get(meta_url, token)
         filename = meta.get("name", "file")
         mime_type = meta.get("file", {}).get("mimeType", "application/octet-stream")
-        modified = meta.get("lastModifiedDateTime")
+        
+        url = f"https://graph.microsoft.com/v1.0/drives/{drive_id}/items/{item_id}/content"
+        headers = {"Authorization": f"Bearer {token}"}
+        resp = requests.get(url, headers=headers, stream=True, allow_redirects=True)
+        resp.raise_for_status()
+        content = resp.raw.read()
+        
+        if download:
+            disposition = 'attachment'
+        else:
+            disposition = 'inline' if preview or mime_type.startswith('image/') or mime_type == 'application/pdf' or mime_type.startswith('text/') else 'attachment'
+        
+        return StreamingResponse(
+            BytesIO(content),
+            media_type=mime_type,
+            headers={
+                "Content-Disposition": f'{disposition}; filename="{filename}"'
+            }
+        )
     except Exception as e:
-        return JSONResponse({"error": f"Failed to fetch metadata: {str(e)}"}, status_code=500)
-    cache_key = (drive_id, parent_id or 'root', item_id)
-    should_cache = is_older_than_one_day(modified)
-    content = None
-    # Only use cache if file is older than 1 day
-    if should_cache:
-        with file_cache_lock:
-            cached_result = file_cache.get(cache_key)
-        if cached_result:
-            content, mime_type, filename = cached_result
-    if content is None:
-        try:
-            url = f"https://graph.microsoft.com/v1.0/drives/{drive_id}/items/{item_id}/content"
-            headers = {"Authorization": f"Bearer {token}"}
-            resp = requests.get(url, headers=headers, stream=True, allow_redirects=True)
-            resp.raise_for_status()
-            content = resp.raw.read()
-            if should_cache:
-                with file_cache_lock:
-                    file_cache[cache_key] = (content, mime_type, filename)
-        except Exception as e:
-            return JSONResponse({"error": str(e)}, status_code=500)
-    if download:
-        disposition = 'attachment'
-    else:
-        disposition = 'inline' if preview or mime_type.startswith('image/') or mime_type == 'application/pdf' or mime_type.startswith('text/') else 'attachment'
-    return StreamingResponse(
-        BytesIO(content),
-        media_type=mime_type,
-        headers={
-            "Content-Disposition": f'{disposition}; filename="{filename}"'
-        }
-    )
+        logger.error(f"Error in get_file_content: {e}", exc_info=True)
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 # Content/files endpoints (stubs)
 content_router = APIRouter()

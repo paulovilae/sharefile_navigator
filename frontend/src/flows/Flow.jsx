@@ -5,11 +5,9 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from 
 import { arrayMove, SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-import SharePointExplorer from '../explorers/SharePointExplorer';
+import SharePointExplorer from '../__archive__/explorers/SharePointExplorer';
 import SlimBlockAccordion from '../components/SlimBlockAccordion';
 import DragHandle from '../components/DragHandle';
-import PDFConverterBlock from './blocks/PDFConverterBlock';
-import OCRBlock from './blocks/OCRBlock';
 import { BLOCK_LIBRARY } from '../constants/blockLibrary'; // Import BLOCK_LIBRARY
 
 const initialSharePointBlock = {
