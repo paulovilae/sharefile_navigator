@@ -11,11 +11,9 @@ import { LocalizationList, LocalizationEdit, LocalizationCreate } from './resour
 import christusTheme, { christusDarkTheme } from './theme/christusTheme';
 import defaultTheme from './theme/defaultTheme';
 import defaultDarkTheme from './theme/defaultDarkTheme';
-import BlocksPage from './resources/BlocksPage';
+import BlocksPage from './admin/pages/blocks/BlocksAdminPage';
 import SidebarMenuEditor from './admin/SidebarMenuEditor';
 import OcrWorkflow from './components/OcrWorkflow';
-import SharePointMetricsDemo from './components/SharePointMetricsDemo';
-import BlockMetricsDemo from './components/BlockMetricsDemo';
 import { Route } from 'react-router-dom';
 
 const themeMap = {
@@ -90,8 +88,6 @@ export default function App() {
       <CustomRoutes>
         <Route path="/admin/sidebar-menus" element={<SidebarMenuEditor />} />
         <Route path="/ocr-workflow" element={<OcrWorkflow />} />
-        <Route path="/sharepoint-metrics" element={<SharePointMetricsDemo />} />
-        <Route path="/block-metrics" element={<BlockMetricsDemo />} />
       </CustomRoutes>
       <Resource
         name="sharepoint/libraries"

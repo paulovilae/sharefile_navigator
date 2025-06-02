@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import axios from 'axios';
 import {
     Box,
     Typography,
@@ -18,18 +19,13 @@ import {
 import {
     ExpandMore as ExpandMoreIcon,
     Settings as SettingsIcon,
-    Assessment as AssessmentIcon,
     FolderOpen as FolderOpenIcon,
     PictureAsPdf as PictureAsPdfIcon,
-    TextFields as TextFieldsIcon,
-    CheckCircle as CheckCircleIcon,
-    Save as SaveIcon,
     NavigateNext as NavigateNextIcon
 } from '@mui/icons-material';
 
-import SharePointExplorer from '../__archive__/explorers/SharePointExplorer'; // Updated import
-// import SharePointExplorerBlock from '../__archive__/SharePointExplorerBlock'; // Old import
-import OcrProcessingBlock from './blocks/OcrProcessingBlock'; // New import
+import SharePointExplorerBlock from './blocks/SharePointExplorer/SharePointExplorerBlock';
+import OCRBlock from './blocks/OCRBlock'; // Unified OCR Block import
 import { blockTemplate } from '../theme/blockTemplate';
 
 const OcrWorkflow = () => {
@@ -38,30 +34,15 @@ const OcrWorkflow = () => {
     
     // State for workflow steps
     const [currentStep, setCurrentStep] = useState(0);
-    const [expandedSteps, setExpandedSteps] = useState([]);
+    const [expandedSteps, setExpandedSteps] = useState([0]); // Start with first step expanded
     
     // State for SharePoint selection
     const [selectedFiles, setSelectedFiles] = useState([]);
-
-    useEffect(() => {
-        const fetchBlockTemplates = async () => {
-            try {
-                const response = await axios.get('/api/block_templates');
-                setBlockTemplates(response.data);
-                setExpandedSteps(Array(response.data.length).fill(false));
-            } catch (error) {
-                console.error("Error fetching block templates:", error);
-            }
-        };
-
-        fetchBlockTemplates();
-    }, []);
     const [settingsExpanded, setSettingsExpanded] = useState(false);
-    // const [metricsExpanded, setMetricsExpanded] = useState(false); // Already commented out, ensuring it stays this way or is removed
     
     // State for block executions
     const [sharePointExecution, setSharePointExecution] = useState(null);
-    const [ocrExecution, setOcrExecution] = useState(null);
+    const [pdfOcrExecution, setPdfOcrExecution] = useState(null);
 
     // Handle SharePoint block execution updates
     const handleSharePointUpdate = useCallback((update) => {
@@ -69,13 +50,13 @@ const OcrWorkflow = () => {
         setSharePointExecution(prev => ({ ...prev, ...update }));
     }, []);
 
-    // Handle OCR block execution updates
-    const handleOcrUpdate = useCallback((update) => {
-        console.log('Workflow: OCR block update:', update);
-        setOcrExecution(prev => ({ ...prev, ...update }));
+    // Handle PDF OCR block execution updates
+    const handlePdfOcrUpdate = useCallback((update) => {
+        console.log('Workflow: PDF OCR block update:', update);
+        setPdfOcrExecution(prev => ({ ...prev, ...update }));
     }, []);
     
-    // Workflow step definitions
+    // Simplified workflow with only essential blocks
     const workflowSteps = [
         {
             id: 'sharepoint-selection',
@@ -83,30 +64,18 @@ const OcrWorkflow = () => {
             icon: <FolderOpenIcon />,
             description: 'Select PDF files or directories from SharePoint',
             component: 'sharepoint'
+        },
+        {
+            id: 'pdf-preprocessing',
+            title: 'PDF Preprocessing & OCR',
+            icon: <PictureAsPdfIcon />,
+            description: 'Convert, preprocess, and extract text from PDF files with quality assessment',
+            component: 'pdf-preprocessing'
         }
     ];
 
-    const [selectedBlock, setSelectedBlock] = useState(null);
-    const [blockTemplates, setBlockTemplates] = useState([]);
-
-    useEffect(() => {
-        const fetchBlockTemplates = async () => {
-            try {
-                const response = await axios.get('/api/block_templates');
-                setBlockTemplates(response.data);
-            } catch (error) {
-                console.error("Error fetching block templates:", error);
-            }
-        };
-
-        fetchBlockTemplates();
-    }, []);
-
-    const [blocks, setBlocks] = useState([]);
-
-    useEffect(() => {
-        setBlocks(blockTemplates);
-    }, [blockTemplates]);
+    // Use workflowSteps as blocks
+    const blocks = workflowSteps;
 
     const handleSelectionChange = useCallback((selectedItems) => {
         console.log('SharePoint selection changed:', selectedItems);
@@ -116,18 +85,25 @@ const OcrWorkflow = () => {
     const handleNextStep = () => {
         if (currentStep < blocks.length - 1) {
             // Collapse current step and expand next step
-            const newExpandedSteps = Array(blocks.length).fill(false);
-            newExpandedSteps[currentStep] = false;
-            newExpandedSteps[currentStep + 1] = true;
+            const newExpandedSteps = [...expandedSteps];
+            const currentIndex = newExpandedSteps.indexOf(currentStep);
+            if (currentIndex !== -1) {
+                newExpandedSteps[currentIndex] = currentStep + 1;
+            } else {
+                newExpandedSteps.push(currentStep + 1);
+            }
             setExpandedSteps(newExpandedSteps);
             setCurrentStep(currentStep + 1);
         }
     };
 
     const handleStepClick = (stepIndex) => {
-        const newExpandedSteps = Array(blocks.length).fill(false);
-        newExpandedSteps[stepIndex] = !newExpandedSteps[stepIndex];
-        setExpandedSteps(newExpandedSteps);
+        const isCurrentlyExpanded = expandedSteps.includes(stepIndex);
+        if (isCurrentlyExpanded) {
+            setExpandedSteps(expandedSteps.filter(index => index !== stepIndex));
+        } else {
+            setExpandedSteps([...expandedSteps, stepIndex]);
+        }
         setCurrentStep(stepIndex);
     };
 
@@ -136,7 +112,8 @@ const OcrWorkflow = () => {
             case 'sharepoint':
                 return (
                     <Box>
-                        <SharePointExplorer
+                        <SharePointExplorerBlock
+                            config={{}}
                             onSelectionChange={handleSelectionChange}
                             multiSelect={true}
                         />
@@ -160,259 +137,14 @@ const OcrWorkflow = () => {
                         )}
                     </Box>
                 );
-            case 'pdf-conversion':
+            case 'pdf-preprocessing':
                 return (
                     <Box>
-                        <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            {/* <PictureAsPdfIcon />
-                            PDF Conversion Settings */}
-                        </Typography>
-                        
-                        <Box sx={{ p: 3, bgcolor: 'grey.50', borderRadius: 1, mb: 2 }}>
-                            <Typography variant="body1" color="text.secondary" gutterBottom>
-                                Preprocessing settings and metrics will go here.
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                                This section will include:
-                            </Typography>
-                            <Box component="ul" sx={{ mt: 1, pl: 2 }}>
-                                <Typography component="li" variant="body2" color="text.secondary">
-                                    PDF quality settings
-                                </Typography>
-                                <Typography component="li" variant="body2" color="text.secondary">
-                                    Page range selection
-                                </Typography>
-                                <Typography component="li" variant="body2" color="text.secondary">
-                                    Image preprocessing options
-                                </Typography>
-                                <Typography component="li" variant="body2" color="text.secondary">
-                                    Conversion progress metrics
-                                </Typography>
-                            </Box>
-                        </Box>
-
-                        {/* Placeholder for conversion metrics */}
-                        <Box sx={{ p: 2, border: '1px dashed', borderColor: 'grey.300', borderRadius: 1 }}>
-                            <Typography variant="subtitle2" gutterBottom>
-                                Conversion Metrics (Placeholder)
-                            </Typography>
-                            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2 }}>
-                                <Box>
-                                    <Typography variant="body2" color="text.secondary">
-                                        Files to Process: {selectedFiles.length}
-                                    </Typography>
-                                </Box>
-                                <Box>
-                                    <Typography variant="body2" color="text.secondary">
-                                        Estimated Time: --
-                                    </Typography>
-                                </Box>
-                                <Box>
-                                    <Typography variant="body2" color="text.secondary">
-                                        Quality Setting: High
-                                    </Typography>
-                                </Box>
-                                <Box>
-                                    <Typography variant="body2" color="text.secondary">
-                                        Output Format: Optimized PDF
-                                    </Typography>
-                                </Box>
-                            </Box>
-                        </Box>
-                    </Box>
-                );
-            case 'ocr':
-                return (
-                    <Box>
-                        <OcrProcessingBlock
+                        <OCRBlock
                             config={{}} // Add any specific config if needed
-                            onExecutionUpdate={handleOcrUpdate}
-                            // Pass selectedFiles as input if OcrProcessingBlock expects it
-                            // inputFiles={selectedFiles}
+                            onExecutionUpdate={handlePdfOcrUpdate}
+                            selectedFiles={selectedFiles}
                         />
-                    </Box>
-                );
-            case 'quality':
-                return (
-                    <Box>
-                        <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <AssessmentIcon />
-                            Quality Test Settings
-                        </Typography>
-                        
-                        <Box sx={{ p: 3, bgcolor: 'grey.50', borderRadius: 1, mb: 2 }}>
-                            <Typography variant="body1" color="text.secondary" gutterBottom>
-                                Quality test settings and metrics will go here.
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                                This section will include:
-                            </Typography>
-                            <Box component="ul" sx={{ mt: 1, pl: 2 }}>
-                                <Typography component="li" variant="body2" color="text.secondary">
-                                    OCR accuracy validation thresholds
-                                </Typography>
-                                <Typography component="li" variant="body2" color="text.secondary">
-                                    Text confidence score analysis
-                                </Typography>
-                                <Typography component="li" variant="body2" color="text.secondary">
-                                    Character recognition error detection
-                                </Typography>
-                                <Typography component="li" variant="body2" color="text.secondary">
-                                    Quality metrics and reporting
-                                </Typography>
-                            </Box>
-                        </Box>
-
-                        {/* Placeholder for quality test metrics */}
-                        <Box sx={{ p: 2, border: '1px dashed', borderColor: 'grey.300', borderRadius: 1 }}>
-                            <Typography variant="subtitle2" gutterBottom>
-                                Quality Test Metrics (Placeholder)
-                            </Typography>
-                            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2 }}>
-                                <Box>
-                                    <Typography variant="body2" color="text.secondary">
-                                        Accuracy Threshold: 90%
-                                    </Typography>
-                                </Box>
-                                <Box>
-                                    <Typography variant="body2" color="text.secondary">
-                                        Confidence Score: 85%
-                                    </Typography>
-                                </Box>
-                                <Box>
-                                    <Typography variant="body2" color="text.secondary">
-                                        Error Rate: &lt; 5%
-                                    </Typography>
-                                </Box>
-                                <Box>
-                                    <Typography variant="body2" color="text.secondary">
-                                        Test Status: Pending
-                                    </Typography>
-                                </Box>
-                            </Box>
-                        </Box>
-                    </Box>
-                );
-            case 'save':
-                return (
-                    <Box>
-                        <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <SaveIcon />
-                            Save Results Settings
-                        </Typography>
-                        
-                        <Box sx={{ p: 3, bgcolor: 'grey.50', borderRadius: 1, mb: 2 }}>
-                            <Typography variant="body1" color="text.secondary" gutterBottom>
-                                Save results settings and metrics will go here.
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                                This section will include:
-                            </Typography>
-                            <Box component="ul" sx={{ mt: 1, pl: 2 }}>
-                                <Typography component="li" variant="body2" color="text.secondary">
-                                    Database storage configuration
-                                </Typography>
-                                <Typography component="li" variant="body2" color="text.secondary">
-                                    File export format options
-                                </Typography>
-                                <Typography component="li" variant="body2" color="text.secondary">
-                                    Metadata and indexing settings
-                                </Typography>
-                                <Typography component="li" variant="body2" color="text.secondary">
-                                    Save operation progress and status
-                                </Typography>
-                            </Box>
-                        </Box>
-
-                        {/* Placeholder for save results metrics */}
-                        <Box sx={{ p: 2, border: '1px dashed', borderColor: 'grey.300', borderRadius: 1 }}>
-                            <Typography variant="subtitle2" gutterBottom>
-                                Save Results Metrics (Placeholder)
-                            </Typography>
-                            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2 }}>
-                                <Box>
-                                    <Typography variant="body2" color="text.secondary">
-                                        Storage Location: Database
-                                    </Typography>
-                                </Box>
-                                <Box>
-                                    <Typography variant="body2" color="text.secondary">
-                                        Export Format: JSON + Text
-                                    </Typography>
-                                </Box>
-                                <Box>
-                                    <Typography variant="body2" color="text.secondary">
-                                        Indexing: Full-text search
-                                    </Typography>
-                                </Box>
-                                <Box>
-                                    <Typography variant="body2" color="text.secondary">
-                                        Save Status: Ready
-                                    </Typography>
-                                </Box>
-                            </Box>
-                        </Box>
-                    </Box>
-                );
-            case 'next':
-                return (
-                    <Box>
-                        <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <NavigateNextIcon />
-                            Next PDF Processing
-                        </Typography>
-                        
-                        <Box sx={{ p: 3, bgcolor: 'grey.50', borderRadius: 1, mb: 2 }}>
-                            <Typography variant="body1" color="text.secondary" gutterBottom>
-                                Options for processing the next PDF will go here.
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                                This section will include:
-                            </Typography>
-                            <Box component="ul" sx={{ mt: 1, pl: 2 }}>
-                                <Typography component="li" variant="body2" color="text.secondary">
-                                    Queue management for remaining PDFs
-                                </Typography>
-                                <Typography component="li" variant="body2" color="text.secondary">
-                                    Batch processing options
-                                </Typography>
-                                <Typography component="li" variant="body2" color="text.secondary">
-                                    Processing priority settings
-                                </Typography>
-                                <Typography component="li" variant="body2" color="text.secondary">
-                                    Workflow completion summary
-                                </Typography>
-                            </Box>
-                        </Box>
-
-                        {/* Placeholder for next PDF options */}
-                        <Box sx={{ p: 2, border: '1px dashed', borderColor: 'grey.300', borderRadius: 1 }}>
-                            <Typography variant="subtitle2" gutterBottom>
-                                Next PDF Options (Placeholder)
-                            </Typography>
-                            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2 }}>
-                                <Box>
-                                    <Typography variant="body2" color="text.secondary">
-                                        Remaining Files: 0
-                                    </Typography>
-                                </Box>
-                                <Box>
-                                    <Typography variant="body2" color="text.secondary">
-                                        Processing Mode: Sequential
-                                    </Typography>
-                                </Box>
-                                <Box>
-                                    <Typography variant="body2" color="text.secondary">
-                                        Auto-continue: Disabled
-                                    </Typography>
-                                </Box>
-                                <Box>
-                                    <Typography variant="body2" color="text.secondary">
-                                        Workflow Status: Complete
-                                    </Typography>
-                                </Box>
-                            </Box>
-                        </Box>
                     </Box>
                 );
             default:
@@ -471,85 +203,85 @@ const OcrWorkflow = () => {
             </Box>
 
             {/* Workflow Steps */}
-            {blocks.map((step, index) => (
-                <Card
-                    key={step.id}
-                    sx={{
-                        ...blockStyles.block,
-                        mb: 2,
-                        opacity: expandedSteps[index] ? 1 : 0.7,
-                        transform: expandedSteps[index] ? 'scale(1)' : 'scale(0.98)',
-                        transition: 'all 0.3s ease-in-out',
-                    }}
-                >
-                    <CardContent sx={{ p: 0 }}>
-                        {/* Step Header */}
-                        <Box
-                            sx={{
-                                p: 2,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                cursor: 'pointer',
-                                bgcolor: expandedSteps[index] ? 'primary.main' : 'grey.100',
-                                color: expandedSteps[index] ? 'primary.contrastText' : 'text.primary',
-                                borderRadius: '12px 12px 0 0',
-                            }}
-                            onClick={() => handleStepClick(index)}
-                        >
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                {step.icon}
-                                <Box>
-                                    <Typography variant="h6" component="div">
-                                        {step.title}
-                                    </Typography>
-                                    <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                                        {step.description}
-                                    </Typography>
-                                </Box>
-                            </Box>
-                            <IconButton
+            {blocks.map((step, index) => {
+                const isExpanded = expandedSteps.includes(index);
+                return (
+                    <Card
+                        key={step.id}
+                        sx={{
+                            ...blockStyles.block,
+                            mb: 2,
+                            opacity: isExpanded ? 1 : 0.7,
+                            transform: isExpanded ? 'scale(1)' : 'scale(0.98)',
+                            transition: 'all 0.3s ease-in-out',
+                        }}
+                    >
+                        <CardContent sx={{ p: 0 }}>
+                            {/* Step Header */}
+                            <Box
                                 sx={{
-                                    color: 'inherit',
-                                    transform: expandedSteps[index] ? 'rotate(180deg)' : 'rotate(0deg)',
-                                    transition: 'transform 0.3s ease-in-out',
+                                    p: 2,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    cursor: 'pointer',
+                                    bgcolor: isExpanded ? 'primary.main' : 'grey.100',
+                                    color: isExpanded ? 'primary.contrastText' : 'text.primary',
+                                    borderRadius: '12px 12px 0 0',
                                 }}
+                                onClick={() => handleStepClick(index)}
                             >
-                                <ExpandMoreIcon />
-                            </IconButton>
-                        </Box>
-
-                        {/* Step Content */}
-                        <Collapse in={expandedSteps[index]} timeout={300}>
-                            <Box sx={{ p: 2 }}>
-                                {/* Settings Panel (only for first step) */}
-                                {index === 0 && renderSettingsPanel()}
-                                
-                                {/* Main Content */}
-                                {renderStepContent(step)}
-                                
-                                {/* Metrics Panel (only for first step) - REMOVED */}
-                                {/* {index === 0 && renderMetricsPanel()} */}
-                                
-                                {/* Next Step Button */}
-                                {index === currentStep && index < workflowSteps.length - 1 && (
-                                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
-                                        <Button
-                                            variant="contained"
-                                            endIcon={<NavigateNextIcon />}
-                                            onClick={handleNextStep}
-                                            disabled={index === 0 && selectedFiles.length === 0}
-                                            sx={blockStyles.button.sx}
-                                        >
-                                            {index === workflowSteps.length - 2 ? 'Finish' : 'Next Step'}
-                                        </Button>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                    {step.icon}
+                                    <Box>
+                                        <Typography variant="h6" component="div">
+                                            {step.title}
+                                        </Typography>
+                                        <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                                            {step.description}
+                                        </Typography>
                                     </Box>
-                                )}
+                                </Box>
+                                <IconButton
+                                    sx={{
+                                        color: 'inherit',
+                                        transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                                        transition: 'transform 0.3s ease-in-out',
+                                    }}
+                                >
+                                    <ExpandMoreIcon />
+                                </IconButton>
                             </Box>
-                        </Collapse>
-                    </CardContent>
-                </Card>
-            ))}
+
+                            {/* Step Content */}
+                            <Collapse in={isExpanded} timeout={300}>
+                                <Box sx={{ p: 2 }}>
+                                    {/* Settings Panel (only for first step) */}
+                                    {index === 0 && renderSettingsPanel()}
+                                    
+                                    {/* Main Content */}
+                                    {renderStepContent(step)}
+                                    
+                                    {/* Next Step Button */}
+                                    {index === currentStep && index < blocks.length - 1 && (
+                                        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+                                            <Button
+                                                variant="contained"
+                                                endIcon={<NavigateNextIcon />}
+                                                onClick={handleNextStep}
+                                                disabled={index === 0 && selectedFiles.length === 0}
+                                                sx={blockStyles.button?.sx || {}}
+                                            >
+                                                {index === blocks.length - 2 ? 'Finish' : 'Next Step'}
+                                            </Button>
+                                        </Box>
+                                    )}
+                                </Box>
+                            </Collapse>
+                        </CardContent>
+                    </Card>
+                );
+            })}
         </Box>
     );
 };

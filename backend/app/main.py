@@ -11,6 +11,8 @@ from app.api.sharepoint import content_router
 from app.api import settings
 from app.routers.blocks import router as blocks_router
 from app.api import cache
+from app.api import preload
+from app.startup import setup_startup_tasks, preload_health_check
 
 
 
@@ -39,10 +41,19 @@ app.include_router(content_router, prefix="/api/content/files", tags=["content"]
 app.include_router(settings.router, prefix="/api/settings", tags=["settings"])
 app.include_router(blocks_router, prefix="/api/blocks")
 app.include_router(cache.router, prefix="/api/cache", tags=["cache"])
+app.include_router(preload.router, prefix="/api/preload", tags=["preload"])
 
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
+
+@app.get("/health/preload")
+def preload_health():
+    """Health check endpoint specifically for the preload system."""
+    return preload_health_check()
+
+# Setup startup tasks
+setup_startup_tasks(app)
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):

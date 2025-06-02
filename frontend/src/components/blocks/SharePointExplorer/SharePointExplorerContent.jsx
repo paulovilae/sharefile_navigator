@@ -252,6 +252,7 @@ const SharePointExplorerContent = ({
                 isItemSelected={isItemSelected}
                 handleSelectItem={handleSelectItem}
                 itemType="folder"
+                selectionMode={!!handleFileSelectionChange}
               />
             </Box>
           )}
@@ -274,6 +275,7 @@ const SharePointExplorerContent = ({
                   const url = `/api/sharepoint/file_content?drive_id=${selectedLibrary.id}&item_id=${file.id}&preview=true`;
                   window.open(url, '_blank');
                 }}
+                selectionMode={!!handleFileSelectionChange}
               />
             </Box>
           )}

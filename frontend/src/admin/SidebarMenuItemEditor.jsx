@@ -27,6 +27,11 @@ const api = async (url, method = 'GET', body) => {
     headers: { 'Content-Type': 'application/json' },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
+  
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+  }
+  
   return res.json();
 };
 
@@ -319,19 +324,40 @@ export default function SidebarMenuItemEditor() {
     { field: 'order', title: 'Order', hidden: true, dialogVisible: false },   // Correct mapping and hide by default, hide in dialog
   ];
 
-  const handleAddRow = (newRow) => {
+  const handleAddRow = async (newRow) => {
     console.log('handleAddRow', newRow);
-    // Implement your add row logic here
+    try {
+      await api('/api/blocks/sidebar_menus', 'POST', newRow);
+      await load(); // Reload the data
+      setSnackbar({ open: true, message: 'Menu item added successfully!', severity: 'success' });
+    } catch (error) {
+      console.error('Error adding menu item:', error);
+      setSnackbar({ open: true, message: 'Failed to add menu item.', severity: 'error' });
+    }
   };
 
-  const handleRemoveRow = (rowId) => {
+  const handleRemoveRow = async (rowId) => {
     console.log('handleRemoveRow', rowId);
-    // Implement your remove row logic here
+    try {
+      await api(`/api/blocks/sidebar_menus/${rowId}`, 'DELETE');
+      await load(); // Reload the data
+      setSnackbar({ open: true, message: 'Menu item deleted successfully!', severity: 'success' });
+    } catch (error) {
+      console.error('Error deleting menu item:', error);
+      setSnackbar({ open: true, message: 'Failed to delete menu item.', severity: 'error' });
+    }
   };
 
-  const handleUpdateRow = (updatedRow) => {
+  const handleUpdateRow = async (updatedRow) => {
     console.log('handleUpdateRow', updatedRow);
-    // Implement your update row logic here
+    try {
+      await api(`/api/blocks/sidebar_menus/${updatedRow.id}`, 'PUT', updatedRow);
+      await load(); // Reload the data
+      setSnackbar({ open: true, message: 'Menu item updated successfully!', severity: 'success' });
+    } catch (error) {
+      console.error('Error updating menu item:', error);
+      setSnackbar({ open: true, message: 'Failed to update menu item.', severity: 'error' });
+    }
   };
 
   const handleMenuChange = (updatedData) => {

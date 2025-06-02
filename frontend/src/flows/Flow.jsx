@@ -5,7 +5,7 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from 
 import { arrayMove, SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-import SharePointExplorer from '../__archive__/explorers/SharePointExplorer';
+import SharePointExplorerBlock from '../components/blocks/SharePointExplorer/SharePointExplorerBlock';
 import SlimBlockAccordion from '../components/SlimBlockAccordion';
 import DragHandle from '../components/DragHandle';
 import { BLOCK_LIBRARY } from '../constants/blockLibrary'; // Import BLOCK_LIBRARY
@@ -348,7 +348,8 @@ const Flow = ({
                     collapsible={true} // SharePoint explorer can be collapsed
                     // No dragHandle, no onDelete for the first block
                 >
-                    <SharePointExplorer
+                    <SharePointExplorerBlock
+                        config={{}}
                         onSelectionChange={handleExplorerOutputChange} // Changed from onSelectionComplete, passing renamed handler
                         multiSelect={true} // Or from config
                     />

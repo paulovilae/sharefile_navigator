@@ -91,14 +91,25 @@ export default function GenericFileEditor({ data, columns, onAddRow, onRemoveRow
   const handleSelectAllRows = (event) => {
     let newSelectedIds;
     if (event.target.checked) {
-      newSelectedIds = displayData.map(row => row.id); // Select all from currently displayed data
+      // Only select digitizable files when in external selection mode
+      if (externallySelectedIds !== undefined) {
+        newSelectedIds = displayData.filter(row => isDigitizable(row)).map(row => row.id);
+      } else {
+        newSelectedIds = displayData.map(row => row.id);
+      }
     } else {
       newSelectedIds = [];
     }
     updateSelection(newSelectedIds);
   };
 
-  const handleSelectRow = (event, id) => {
+  const handleSelectRow = (event, id, row) => {
+    // Prevent selection of non-digitizable files in external selection mode
+    if (externallySelectedIds !== undefined && !isDigitizable(row)) {
+      event.preventDefault();
+      return;
+    }
+
     const selectedIndex = currentSelectedIds.indexOf(id);
     let newSelected = [];
 
@@ -202,19 +213,14 @@ export default function GenericFileEditor({ data, columns, onAddRow, onRemoveRow
     });
   }, [rows, searchTerm, selectedColumns]);
 
-  // Filter data to only show digitizable files (PDFs) if this is for file selection
-  const digitizableData = React.useMemo(() => {
-    if (externallySelectedIds !== undefined) {
-      // This is being used for external selection (like SharePoint), filter for PDFs only
-      return filteredData.filter(row => {
-        const ext = row.name?.split('.').pop()?.toLowerCase();
-        return ['pdf'].includes(ext);
-      });
-    }
-    return filteredData;
-  }, [filteredData, externallySelectedIds]);
+  // Helper function to check if a file is digitizable (PDF)
+  const isDigitizable = (row) => {
+    const ext = row.name?.split('.').pop()?.toLowerCase();
+    return ['pdf'].includes(ext);
+  };
 
-  const displayData = externallySelectedIds !== undefined ? digitizableData : filteredData;
+  // For external selection mode, show all files but only allow PDF selection
+  const displayData = filteredData;
 
   const handleDragStart = (row) => {
     setDraggedRow(row);
@@ -334,9 +340,21 @@ export default function GenericFileEditor({ data, columns, onAddRow, onRemoveRow
                 <TableCell></TableCell>
                       <TableCell padding="checkbox">
                         <Checkbox
-                          checked={displayData.length > 0 && currentSelectedIds.length === displayData.length}
+                          checked={(() => {
+                            if (externallySelectedIds !== undefined) {
+                              const digitizableFiles = displayData.filter(row => isDigitizable(row));
+                              return digitizableFiles.length > 0 && currentSelectedIds.length === digitizableFiles.length;
+                            }
+                            return displayData.length > 0 && currentSelectedIds.length === displayData.length;
+                          })()}
                           onChange={handleSelectAllRows}
-                          indeterminate={currentSelectedIds.length > 0 && currentSelectedIds.length < displayData.length}
+                          indeterminate={(() => {
+                            if (externallySelectedIds !== undefined) {
+                              const digitizableFiles = displayData.filter(row => isDigitizable(row));
+                              return currentSelectedIds.length > 0 && currentSelectedIds.length < digitizableFiles.length;
+                            }
+                            return currentSelectedIds.length > 0 && currentSelectedIds.length < displayData.length;
+                          })()}
                           size="small" // Apply consistent size
                           color="primary" // Apply consistent color
                         />
@@ -364,45 +382,77 @@ export default function GenericFileEditor({ data, columns, onAddRow, onRemoveRow
                     {displayData.map((row, index) => {
                       const isItemSelected = isRowSelected(row.id);
                       const labelId = `enhanced-table-checkbox-${row.id}`;
+                      const isFileDigitizable = isDigitizable(row);
+                      const isExternalSelection = externallySelectedIds !== undefined;
+                      const isRowDisabled = isExternalSelection && !isFileDigitizable;
 
                       return (
                         <StyledTableRow
-                          hover
-                          onClick={(event) => handleSelectRow(event, row.id)}
+                          hover={!isRowDisabled}
+                          onClick={(event) => handleSelectRow(event, row.id, row)}
                           role="checkbox"
                           aria-checked={isItemSelected}
                           tabIndex={-1}
                           key={row.id}
                           selected={isItemSelected}
-                          draggable
-                          onDragStart={() => handleDragStart(row)}
-                          onDragEnter={() => handleDragEnter(row)}
+                          draggable={!isRowDisabled}
+                          onDragStart={() => !isRowDisabled && handleDragStart(row)}
+                          onDragEnter={() => !isRowDisabled && handleDragEnter(row)}
                           onDragEnd={handleDragEnd}
+                          sx={{
+                            opacity: isRowDisabled ? 0.5 : 1,
+                            cursor: isRowDisabled ? 'not-allowed' : 'pointer',
+                            '&:hover': {
+                              backgroundColor: isRowDisabled ? 'transparent' : undefined
+                            }
+                          }}
                         >
                           <TableCell sx={{ width: 40 }}>
-                            <IconButton aria-label="drag" onClick={(event) => event.stopPropagation()} size="small">
+                            <IconButton
+                              aria-label="drag"
+                              onClick={(event) => event.stopPropagation()}
+                              size="small"
+                              disabled={isRowDisabled}
+                              sx={{ opacity: isRowDisabled ? 0.3 : 1 }}
+                            >
                               <MenuIcon fontSize="small" />
                             </IconButton>
                           </TableCell>
                           <TableCell padding="checkbox">
                             <Checkbox
                               checked={isItemSelected}
-                              onChange={(event) => handleSelectRow(event, row.id)}
+                              onChange={(event) => handleSelectRow(event, row.id, row)}
                               inputProps={{ 'aria-labelledby': labelId }}
-                              size="small" // Apply consistent size
-                              color="primary" // Apply consistent color
+                              size="small"
+                              color="primary"
+                              disabled={isRowDisabled}
+                              sx={{ opacity: isRowDisabled ? 0.3 : 1 }}
                             />
                           </TableCell>
                           {columns
                             .filter(column => selectedColumns.includes(column.field))
                             .map(column => (
-                              <TableCell key={`${row.id}-${column.field}`} component="th" id={labelId} scope="row">
-                                {column.render ? column.render(row, column) : row[column.field]}
+                              <TableCell
+                                key={`${row.id}-${column.field}`}
+                                component="th"
+                                id={labelId}
+                                scope="row"
+                                sx={{
+                                  opacity: isRowDisabled ? 0.5 : 1,
+                                  color: isRowDisabled ? 'text.disabled' : 'inherit'
+                                }}
+                              >
+                                {column.render ? column.render(row, column, { disabled: isRowDisabled }) : row[column.field]}
                               </TableCell>
                             ))}
                           <TableCell sx={{ width: 60 }}>
                             <Tooltip title="Edit">
-                              <IconButton onClick={() => handleUpdateRow(row)} size="small">
+                              <IconButton
+                                onClick={() => handleUpdateRow(row)}
+                                size="small"
+                                disabled={isRowDisabled}
+                                sx={{ opacity: isRowDisabled ? 0.3 : 1 }}
+                              >
                                 <EditIcon fontSize="small" />
                               </IconButton>
                             </Tooltip>

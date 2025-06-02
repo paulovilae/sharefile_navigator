@@ -894,7 +894,16 @@ function BlockCategoriesTable() {
   useEffect(() => {
     fetch('/api/blocks/block_categories')
       .then(res => res.json())
-      .then(data => { setCategories(data); setLoading(false); });
+      .then(data => {
+        // Ensure data is an array, fallback to empty array if not
+        setCategories(Array.isArray(data) ? data : []);
+        setLoading(false);
+      })
+      .catch(error => {
+        console.error('Failed to fetch categories:', error);
+        setCategories([]);
+        setLoading(false);
+      });
   }, []);
 
   const handleOpen = (cat) => {
@@ -934,7 +943,15 @@ function BlockCategoriesTable() {
     // Optionally reload categories
     fetch('/api/blocks/block_categories')
       .then(res => res.json())
-      .then(data => { setCategories(data); setLoading(false); });
+      .then(data => {
+        setCategories(Array.isArray(data) ? data : []);
+        setLoading(false);
+      })
+      .catch(error => {
+        console.error('Failed to reload categories:', error);
+        setCategories([]);
+        setLoading(false);
+      });
   };
 
   const handleSelectAll = (e) => {
@@ -959,7 +976,15 @@ function BlockCategoriesTable() {
     setSelected([]);
     fetch('/api/blocks/block_categories')
       .then(res => res.json())
-      .then(data => { setCategories(data); setLoading(false); });
+      .then(data => {
+        setCategories(Array.isArray(data) ? data : []);
+        setLoading(false);
+      })
+      .catch(error => {
+        console.error('Failed to reload categories after delete:', error);
+        setCategories([]);
+        setLoading(false);
+      });
   };
 
   return (
@@ -1487,7 +1512,16 @@ function BlockTemplatesTable({ categories }) {
   useEffect(() => {
     fetch('/api/blocks/block_templates')
       .then(res => res.json())
-      .then(data => { setTemplates(data); setLoading(false); });
+      .then(data => {
+        // Ensure data is an array, fallback to empty array if not
+        setTemplates(Array.isArray(data) ? data : []);
+        setLoading(false);
+      })
+      .catch(error => {
+        console.error('Failed to fetch templates:', error);
+        setTemplates([]);
+        setLoading(false);
+      });
   }, []);
 
   const handleOpen = (tpl) => {
@@ -1549,7 +1583,15 @@ function BlockTemplatesTable({ categories }) {
     // Optionally reload templates
     fetch('/api/blocks/block_templates')
       .then(res => res.json())
-      .then(data => { setTemplates(data); setLoading(false); });
+      .then(data => {
+        setTemplates(Array.isArray(data) ? data : []);
+        setLoading(false);
+      })
+      .catch(error => {
+        console.error('Failed to reload templates:', error);
+        setTemplates([]);
+        setLoading(false);
+      });
   };
 
   const handleSelectAll = (e) => {
@@ -1574,7 +1616,15 @@ function BlockTemplatesTable({ categories }) {
     setSelected([]);
     fetch('/api/blocks/block_templates')
       .then(res => res.json())
-      .then(data => { setTemplates(data); setLoading(false); });
+      .then(data => {
+        setTemplates(Array.isArray(data) ? data : []);
+        setLoading(false);
+      })
+      .catch(error => {
+        console.error('Failed to reload templates after delete:', error);
+        setTemplates([]);
+        setLoading(false);
+      });
   };
 
   return (
@@ -1698,7 +1748,14 @@ export default function BlocksPage() {
   useEffect(() => {
     fetch('/api/blocks/block_categories')
       .then(res => res.json())
-      .then(data => setCategories(data));
+      .then(data => {
+        // Ensure data is an array, fallback to empty array if not
+        setCategories(Array.isArray(data) ? data : []);
+      })
+      .catch(error => {
+        console.error('Failed to fetch categories:', error);
+        setCategories([]);
+      });
   }, []);
   const handleChange = (event, newValue) => setTab(newValue);
   return (

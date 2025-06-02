@@ -133,33 +133,98 @@ def list_files(
     return JSONResponse(files)
 
 @router.get("/file_content")
-@cache_sharepoint_file
-def get_file_content(drive_id: str, item_id: str, parent_id: str = None, preview: bool = False, download: bool = False):
+def get_file_content(drive_id: str, item_id: str, parent_id: str = None, preview: bool = False, download: bool = False, _retry: str = None):
     try:
+        # Smart caching: don't use cache if this is a retry attempt
+        cache_key = None
+        cached_result = None
+        
+        if not _retry:  # Only use cache for initial requests, not retries
+            from app.utils.cache_utils import generate_cache_key, sharepoint_files_cache
+            cache_key = generate_cache_key("get_file_content", drive_id, item_id, parent_id, preview, download)
+            cached_result = sharepoint_files_cache.get(cache_key)
+            
+            if cached_result:
+                logger.info(f"Cache hit for SharePoint file content: {cache_key[:16]}...")
+                # Only return cached result if it's not empty
+                if hasattr(cached_result, 'body_iterator') or (hasattr(cached_result, 'content') and len(cached_result.content) > 0):
+                    return cached_result
+                else:
+                    # Remove empty cached result
+                    logger.warning(f"Removing empty cached result for {cache_key[:16]}...")
+                    del sharepoint_files_cache[cache_key]
+        
         token = get_graph_token()
         meta_url = f"https://graph.microsoft.com/v1.0/drives/{drive_id}/items/{item_id}"
         meta = graph_get(meta_url, token)
         filename = meta.get("name", "file")
         mime_type = meta.get("file", {}).get("mimeType", "application/octet-stream")
+        file_size = meta.get("size", 0)
         
+        logger.info(f"File metadata - Name: {filename}, Size: {file_size}, MIME: {mime_type}, Retry: {_retry is not None}")
+        
+        # Try direct content endpoint first
         url = f"https://graph.microsoft.com/v1.0/drives/{drive_id}/items/{item_id}/content"
         headers = {"Authorization": f"Bearer {token}"}
-        resp = requests.get(url, headers=headers, stream=True, allow_redirects=True)
+        
+        logger.info(f"Requesting file content from: {url}")
+        resp = requests.get(url, headers=headers, allow_redirects=True)
+        logger.info(f"Response status: {resp.status_code}, Content-Length header: {resp.headers.get('Content-Length')}")
+        
         resp.raise_for_status()
-        content = resp.raw.read()
+        content = resp.content
+        
+        # Log content info for debugging
+        logger.info(f"Downloaded file content: {len(content)} bytes for {filename} (expected: {file_size})")
+        
+        # If content is empty, try alternative download method
+        if len(content) == 0:
+            logger.warning(f"Empty content received, trying alternative download method for {filename}")
+            
+            # Try using the @microsoft.graph.downloadUrl property
+            try:
+                download_url = meta.get("@microsoft.graph.downloadUrl")
+                if download_url:
+                    logger.info(f"Trying download URL: {download_url}")
+                    resp = requests.get(download_url, allow_redirects=True)
+                    resp.raise_for_status()
+                    content = resp.content
+                    logger.info(f"Alternative download successful: {len(content)} bytes")
+                else:
+                    logger.error(f"No download URL available for {filename}")
+            except Exception as alt_error:
+                logger.error(f"Alternative download failed: {alt_error}")
+        
+        # Final check for empty content
+        if len(content) == 0:
+            logger.error(f"Empty content received for file {filename} (item_id: {item_id}) after all attempts")
+            logger.error(f"Response headers: {dict(resp.headers)}")
+            raise Exception(f"Empty content received for file {filename}")
+        
+        if file_size > 0 and len(content) != file_size:
+            logger.warning(f"Content size mismatch for {filename}: got {len(content)}, expected {file_size}")
         
         if download:
             disposition = 'attachment'
         else:
             disposition = 'inline' if preview or mime_type.startswith('image/') or mime_type == 'application/pdf' or mime_type.startswith('text/') else 'attachment'
         
-        return StreamingResponse(
+        result = StreamingResponse(
             BytesIO(content),
             media_type=mime_type,
             headers={
                 "Content-Disposition": f'{disposition}; filename="{filename}"'
             }
         )
+        
+        # Only cache successful results (non-empty content) and only for initial requests
+        if cache_key and not _retry and len(content) > 0:
+            from app.utils.cache_utils import sharepoint_files_cache
+            sharepoint_files_cache[cache_key] = result
+            logger.info(f"Cached successful SharePoint file result: {cache_key[:16]}...")
+        
+        return result
+        
     except Exception as e:
         logger.error(f"Error in get_file_content: {e}", exc_info=True)
         return JSONResponse({"error": str(e)}, status_code=500)

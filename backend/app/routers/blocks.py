@@ -211,81 +211,6 @@ def get_block_metrics_summary(
     }
 
 
-@router.get("/metrics/sharepoint", response_model=dict)
-def get_sharepoint_metrics(
-    days: int = 7,
-    db: Session = Depends(get_db)
-):
-    """Get specific metrics for SharePoint Explorer blocks."""
-    end_date = datetime.datetime.utcnow()
-    start_date = end_date - datetime.timedelta(days=days)
-    
-    # Get SharePoint block executions
-    executions = db.query(BlockExecution).join(WorkflowBlock).join(BlockTemplate).filter(
-        BlockExecution.started_at >= start_date,
-        BlockTemplate.type == "frontend",
-        BlockTemplate.component == "SharePointExplorerBlock"
-    ).all()
-    
-    # Aggregate SharePoint-specific metrics
-    metrics = {
-        "total_sessions": len(executions),
-        "total_interactions": 0,
-        "total_folders_accessed": 0,
-        "total_files_viewed": 0,
-        "unique_libraries_explored": set(),
-        "response_times": [],
-        "error_count": 0,
-        "session_durations": [],
-        "most_accessed_libraries": {},
-        "file_type_distribution": {},
-        "peak_usage_hours": {}
-    }
-    
-    for execution in executions:
-        if execution.result and isinstance(execution.result, dict):
-            exec_metrics = execution.result.get("metrics", {})
-            if isinstance(exec_metrics, dict):
-                metrics["total_interactions"] += exec_metrics.get("totalInteractions", 0)
-                metrics["total_folders_accessed"] += exec_metrics.get("foldersAccessed", 0)
-                metrics["total_files_viewed"] += exec_metrics.get("filesViewed", 0)
-                metrics["error_count"] += exec_metrics.get("errorCount", 0)
-                
-                # Response times
-                if "responseTimes" in exec_metrics and isinstance(exec_metrics["responseTimes"], list):
-                    metrics["response_times"].extend(exec_metrics["responseTimes"])
-                
-                # Session duration
-                if "sessionStartTime" in exec_metrics and "lastActivity" in exec_metrics:
-                    duration = (exec_metrics["lastActivity"] - exec_metrics["sessionStartTime"]) / 1000
-                    metrics["session_durations"].append(duration)
-                
-                # Libraries explored
-                if "librariesExplored" in exec_metrics:
-                    if isinstance(exec_metrics["librariesExplored"], list):
-                        metrics["unique_libraries_explored"].update(exec_metrics["librariesExplored"])
-        
-        # Track usage by hour
-        hour = execution.started_at.hour
-        metrics["peak_usage_hours"][hour] = metrics["peak_usage_hours"].get(hour, 0) + 1
-    
-    # Calculate averages and convert sets to counts
-    result = {
-        "period_days": days,
-        "total_sessions": metrics["total_sessions"],
-        "total_interactions": metrics["total_interactions"],
-        "total_folders_accessed": metrics["total_folders_accessed"],
-        "total_files_viewed": metrics["total_files_viewed"],
-        "unique_libraries_count": len(metrics["unique_libraries_explored"]),
-        "error_count": metrics["error_count"],
-        "average_response_time": sum(metrics["response_times"]) / len(metrics["response_times"]) if metrics["response_times"] else 0,
-        "average_session_duration": sum(metrics["session_durations"]) / len(metrics["session_durations"]) if metrics["session_durations"] else 0,
-        "peak_usage_hours": dict(sorted(metrics["peak_usage_hours"].items(), key=lambda x: x[1], reverse=True)[:5])
-    }
-    
-    return result
-
-
 @router.delete("/executions/{execution_id}")
 def delete_block_execution(execution_id: int, db: Session = Depends(get_db)):
     """Delete a block execution record."""
@@ -341,3 +266,148 @@ def get_sidebar_menu_categories(db: Session = Depends(get_db)):
         })
     
     return result
+
+
+@router.post("/sidebar_menus")
+def create_sidebar_menu(menu_data: dict, db: Session = Depends(get_db)):
+    """Create a new sidebar menu."""
+    from app.models import SidebarMenu
+    
+    db_menu = SidebarMenu(
+        label=menu_data.get("label"),
+        icon=menu_data.get("icon"),
+        page_ref=menu_data.get("page_ref"),
+        category_id=menu_data.get("category_id"),
+        order=menu_data.get("order", 0),
+        enabled=menu_data.get("enabled", True)
+    )
+    
+    db.add(db_menu)
+    db.commit()
+    db.refresh(db_menu)
+    
+    return {
+        "id": db_menu.id,
+        "label": db_menu.label,
+        "icon": db_menu.icon,
+        "page_ref": db_menu.page_ref,
+        "category_id": db_menu.category_id,
+        "order": db_menu.order,
+        "enabled": db_menu.enabled,
+        "created_at": db_menu.created_at.isoformat() if db_menu.created_at else None,
+        "updated_at": db_menu.updated_at.isoformat() if db_menu.updated_at else None
+    }
+
+
+@router.put("/sidebar_menus/{menu_id}")
+def update_sidebar_menu(menu_id: int, menu_data: dict, db: Session = Depends(get_db)):
+    """Update a sidebar menu."""
+    from app.models import SidebarMenu
+    
+    db_menu = db.query(SidebarMenu).filter(SidebarMenu.id == menu_id).first()
+    if not db_menu:
+        raise HTTPException(status_code=404, detail="SidebarMenu not found")
+    
+    # Update fields
+    if "label" in menu_data:
+        db_menu.label = menu_data["label"]
+    if "icon" in menu_data:
+        db_menu.icon = menu_data["icon"]
+    if "page_ref" in menu_data:
+        db_menu.page_ref = menu_data["page_ref"]
+    if "category_id" in menu_data:
+        db_menu.category_id = menu_data["category_id"]
+    if "order" in menu_data:
+        db_menu.order = menu_data["order"]
+    if "enabled" in menu_data:
+        db_menu.enabled = menu_data["enabled"]
+    
+    db.commit()
+    db.refresh(db_menu)
+    
+    return {
+        "id": db_menu.id,
+        "label": db_menu.label,
+        "icon": db_menu.icon,
+        "page_ref": db_menu.page_ref,
+        "category_id": db_menu.category_id,
+        "order": db_menu.order,
+        "enabled": db_menu.enabled,
+        "created_at": db_menu.created_at.isoformat() if db_menu.created_at else None,
+        "updated_at": db_menu.updated_at.isoformat() if db_menu.updated_at else None
+    }
+
+
+@router.delete("/sidebar_menus/{menu_id}")
+def delete_sidebar_menu(menu_id: int, db: Session = Depends(get_db)):
+    """Delete a sidebar menu."""
+    from app.models import SidebarMenu
+    
+    db_menu = db.query(SidebarMenu).filter(SidebarMenu.id == menu_id).first()
+    if not db_menu:
+        raise HTTPException(status_code=404, detail="SidebarMenu not found")
+    
+    db.delete(db_menu)
+    db.commit()
+    
+    return {"ok": True}
+
+
+@router.post("/sidebar_menu_categories")
+def create_sidebar_menu_category(category_data: dict, db: Session = Depends(get_db)):
+    """Create a new sidebar menu category."""
+    from app.models import SidebarMenuCategory
+    
+    db_category = SidebarMenuCategory(
+        name=category_data.get("name"),
+        description=category_data.get("description")
+    )
+    
+    db.add(db_category)
+    db.commit()
+    db.refresh(db_category)
+    
+    return {
+        "id": db_category.id,
+        "name": db_category.name,
+        "description": db_category.description
+    }
+
+
+@router.put("/sidebar_menu_categories/{category_id}")
+def update_sidebar_menu_category(category_id: int, category_data: dict, db: Session = Depends(get_db)):
+    """Update a sidebar menu category."""
+    from app.models import SidebarMenuCategory
+    
+    db_category = db.query(SidebarMenuCategory).filter(SidebarMenuCategory.id == category_id).first()
+    if not db_category:
+        raise HTTPException(status_code=404, detail="SidebarMenuCategory not found")
+    
+    if "name" in category_data:
+        db_category.name = category_data["name"]
+    if "description" in category_data:
+        db_category.description = category_data["description"]
+    
+    db.commit()
+    db.refresh(db_category)
+    
+    return {
+        "id": db_category.id,
+        "name": db_category.name,
+        "description": db_category.description
+    }
+
+
+@router.delete("/sidebar_menu_categories/{category_id}")
+def delete_sidebar_menu_category(category_id: int, db: Session = Depends(get_db)):
+    """Delete a sidebar menu category."""
+    from app.models import SidebarMenuCategory
+    
+    db_category = db.query(SidebarMenuCategory).filter(SidebarMenuCategory.id == category_id).first()
+    if not db_category:
+        raise HTTPException(status_code=404, detail="SidebarMenuCategory not found")
+    
+    db.delete(db_category)
+    db.commit()
+    
+    return {"ok": True}

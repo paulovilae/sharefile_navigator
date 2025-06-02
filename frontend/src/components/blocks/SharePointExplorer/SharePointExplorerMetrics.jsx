@@ -17,11 +17,18 @@ import {
   FolderOpen as FolderOpenIcon,
   Description as FileCountIcon,
   Assessment as MetricsIcon,
+  Assessment,
 } from '@mui/icons-material';
 
-const SharePointExplorerMetrics = ({ metrics, metricsExpanded, setMetricsExpanded, getSessionDuration }) => {
+const SharePointExplorerMetrics = ({
+  metrics,
+  metricsExpanded,
+  setMetricsExpanded,
+  getSessionDuration,
+  getCacheHitRate
+}) => {
   const theme = useTheme();
-  console.log('SharePointExplorerMetrics theme:', theme);
+  
   return (
     <Box>
       {/* Collapsible Block Metrics */}
@@ -36,7 +43,7 @@ const SharePointExplorerMetrics = ({ metrics, metricsExpanded, setMetricsExpande
             <Typography variant="h6" sx={{ flexGrow: 1 }}>
               Block Metrics
             </Typography>
-            <Box sx={{ display: 'flex' }}>
+            <Box sx={{ display: 'flex', gap: 0.5 }}>
               <Chip
                 icon={<FolderOpenIcon />}
                 label={`${metrics.currentFolderCount} folders`}
@@ -46,7 +53,14 @@ const SharePointExplorerMetrics = ({ metrics, metricsExpanded, setMetricsExpande
               />
               <Chip
                 icon={<FileCountIcon />}
-                label={`${metrics.currentFileCount} files`}
+                label={`${metrics.pdfFilesCount} PDFs`}
+                size="small"
+                color="error"
+                variant="outlined"
+              />
+              <Chip
+                icon={<FileCountIcon />}
+                label={`${metrics.otherFilesCount} other`}
                 size="small"
                 color="secondary"
                 variant="outlined"
@@ -63,13 +77,14 @@ const SharePointExplorerMetrics = ({ metrics, metricsExpanded, setMetricsExpande
         </AccordionSummary>
         <AccordionDetails>
           <Grid container spacing={2}>
+            {/* Current View */}
             <Grid item xs={12} md={6}>
               <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
                 <FolderOpenIcon sx={{ mr: 1, fontSize: 16 }} />
                 Current View
               </Typography>
               <Grid container spacing={1}>
-                <Grid item xs={6}>
+                <Grid item xs={4}>
                   <Box textAlign="center" sx={{ p: 1, bgcolor: 'primary.light', borderRadius: 1 }}>
                     <Typography variant="h5" color="primary.contrastText">
                       {metrics.currentFolderCount}
@@ -77,17 +92,26 @@ const SharePointExplorerMetrics = ({ metrics, metricsExpanded, setMetricsExpande
                     <Typography variant="caption" color="primary.contrastText">Folders</Typography>
                   </Box>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid item xs={4}>
+                  <Box textAlign="center" sx={{ p: 1, bgcolor: 'error.light', borderRadius: 1 }}>
+                    <Typography variant="h5" color="error.contrastText">
+                      {metrics.pdfFilesCount}
+                    </Typography>
+                    <Typography variant="caption" color="error.contrastText">PDFs</Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={4}>
                   <Box textAlign="center" sx={{ p: 1, bgcolor: 'secondary.light', borderRadius: 1 }}>
                     <Typography variant="h5" color="secondary.contrastText">
-                      {metrics.currentFileCount}
+                      {metrics.otherFilesCount}
                     </Typography>
-                    <Typography variant="caption" color="secondary.contrastText">Files</Typography>
+                    <Typography variant="caption" color="secondary.contrastText">Other Files</Typography>
                   </Box>
                 </Grid>
               </Grid>
             </Grid>
             
+            {/* Performance */}
             <Grid item xs={12} md={6}>
               <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
                 <SpeedIcon sx={{ mr: 1, fontSize: 16 }} />
@@ -113,31 +137,56 @@ const SharePointExplorerMetrics = ({ metrics, metricsExpanded, setMetricsExpande
               </Grid>
             </Grid>
             
-            <Grid item xs={12}>
+            {/* User Activity */}
+            <Grid item xs={12} md={6}>
               <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
-                <CacheIcon sx={{ mr: 1, fontSize: 16 }} />
-                Session Stats
+                <Assessment sx={{ mr: 1, fontSize: 16 }} />
+                User Activity
               </Typography>
               <Grid container spacing={1}>
-                <Grid item xs={3}>
+                <Grid item xs={4}>
                   <Box textAlign="center" sx={{ p: 1, border: 1, borderColor: 'divider', borderRadius: 1 }}>
                     <Typography variant="h6">{metrics.totalInteractions}</Typography>
                     <Typography variant="caption">Interactions</Typography>
                   </Box>
                 </Grid>
-                <Grid item xs={3}>
+                <Grid item xs={4}>
                   <Box textAlign="center" sx={{ p: 1, border: 1, borderColor: 'divider', borderRadius: 1 }}>
-                    <Typography variant="h6">{metrics.totalItemsLoaded}</Typography>
-                    <Typography variant="caption">Items Loaded</Typography>
+                    <Typography variant="h6">{metrics.downloadCount}</Typography>
+                    <Typography variant="caption">Downloads</Typography>
                   </Box>
                 </Grid>
-                <Grid item xs={3}>
+                <Grid item xs={4}>
+                  <Box textAlign="center" sx={{ p: 1, border: 1, borderColor: 'divider', borderRadius: 1 }}>
+                    <Typography variant="h6">{metrics.previewCount}</Typography>
+                    <Typography variant="caption">Previews</Typography>
+                  </Box>
+                </Grid>
+              </Grid>
+            </Grid>
+            
+            {/* Cache & Session */}
+            <Grid item xs={12} md={6}>
+              <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+                <CacheIcon sx={{ mr: 1, fontSize: 16 }} />
+                Cache & Session
+              </Typography>
+              <Grid container spacing={1}>
+                <Grid item xs={4}>
+                  <Box textAlign="center" sx={{ p: 1, border: 1, borderColor: 'divider', borderRadius: 1 }}>
+                    <Typography variant="h6">
+                      {getCacheHitRate ? Math.round(getCacheHitRate()) : 0}%
+                    </Typography>
+                    <Typography variant="caption">Cache Hit Rate</Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={4}>
                   <Box textAlign="center" sx={{ p: 1, border: 1, borderColor: 'divider', borderRadius: 1 }}>
                     <Typography variant="h6">{metrics.librariesExplored.size}</Typography>
                     <Typography variant="caption">Libraries</Typography>
                   </Box>
                 </Grid>
-                <Grid item xs={3}>
+                <Grid item xs={4}>
                   <Box textAlign="center" sx={{ p: 1, border: 1, borderColor: 'divider', borderRadius: 1 }}>
                     <Typography variant="h6">{getSessionDuration()}</Typography>
                     <Typography variant="caption">Session Time</Typography>
