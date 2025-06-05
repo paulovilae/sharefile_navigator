@@ -132,6 +132,77 @@ def list_files(
         files.sort(key=lambda f: (f.get(sort_field) or "").lower() if isinstance(f.get(sort_field), str) else f.get(sort_field), reverse=reverse)
     return JSONResponse(files)
 
+@router.get("/list_files_recursive")
+def list_files_recursive(
+    libraryId: str = Query(..., description="SharePoint library/drive ID"),
+    folderId: str = Query(..., description="Folder ID to search recursively"),
+    fileType: str = Query(default="", description="File type filter (e.g., 'pdf')")
+):
+    """
+    Recursively list all files in a folder and its subfolders.
+    Optionally filter by file type.
+    """
+    try:
+        token = get_graph_token()
+        
+        def get_files_recursively(current_folder_id):
+            files = []
+            
+            # Get items in current folder
+            url = f"https://graph.microsoft.com/v1.0/drives/{libraryId}/items/{current_folder_id}/children"
+            
+            try:
+                items = graph_get(url, token)
+                
+                for item in items.get("value", []):
+                    if "file" in item:
+                        # It's a file
+                        file_info = {
+                            "id": item["id"],
+                            "name": item["name"],
+                            "size": item.get("size"),
+                            "created": item.get("createdDateTime"),
+                            "modified": item.get("lastModifiedDateTime"),
+                            "mimeType": item.get("file", {}).get("mimeType"),
+                            "createdBy": item.get("createdBy", {}).get("user"),
+                            "lastModifiedBy": item.get("lastModifiedBy", {}).get("user"),
+                            "drive_id": libraryId,
+                            "driveId": libraryId
+                        }
+                        
+                        # Apply file type filter if specified
+                        if fileType:
+                            filename = item["name"].lower()
+                            if filename.endswith(f'.{fileType.lower()}'):
+                                files.append(file_info)
+                        else:
+                            files.append(file_info)
+                            
+                    elif "folder" in item:
+                        # It's a folder - recurse into it
+                        subfolder_files = get_files_recursively(item["id"])
+                        files.extend(subfolder_files)
+                        
+            except Exception as e:
+                logger.warning(f"Error processing folder {current_folder_id}: {e}")
+                
+            return files
+        
+        # Get all files recursively starting from the specified folder
+        all_files = get_files_recursively(folderId)
+        
+        return JSONResponse({
+            "files": all_files,
+            "total_count": len(all_files),
+            "folder_id": folderId,
+            "library_id": libraryId,
+            "file_type_filter": fileType
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in list_files_recursive: {e}", exc_info=True)
+        return JSONResponse({"error": str(e)}, status_code=500)
+
 @router.get("/file_content")
 def get_file_content(drive_id: str, item_id: str, parent_id: str = None, preview: bool = False, download: bool = False, _retry: str = None):
     try:
@@ -251,3 +322,87 @@ def list_tags():
 @content_router.get('/customfields')
 def list_customfields():
     return []
+
+@router.get("/folder_stats")
+def get_folder_stats(drive_id: str, folder_id: str = None):
+    """
+    Recursively calculate statistics for a folder including:
+    - Total number of files
+    - Total number of folders
+    - Total size in bytes
+    - Number of PDF files
+    """
+    try:
+        token = get_graph_token()
+        
+        def calculate_folder_stats(current_folder_id=None):
+            stats = {
+                "total_files": 0,
+                "total_folders": 0,
+                "total_size": 0,
+                "pdf_files": 0,
+                "other_files": 0
+            }
+            
+            # Get items in current folder
+            if current_folder_id:
+                url = f"https://graph.microsoft.com/v1.0/drives/{drive_id}/items/{current_folder_id}/children"
+            else:
+                url = f"https://graph.microsoft.com/v1.0/drives/{drive_id}/root/children"
+            
+            try:
+                items = graph_get(url, token)
+                
+                for item in items.get("value", []):
+                    if "folder" in item:
+                        # It's a folder - recurse into it
+                        stats["total_folders"] += 1
+                        subfolder_stats = calculate_folder_stats(item["id"])
+                        
+                        # Add subfolder stats to current stats
+                        stats["total_files"] += subfolder_stats["total_files"]
+                        stats["total_folders"] += subfolder_stats["total_folders"]
+                        stats["total_size"] += subfolder_stats["total_size"]
+                        stats["pdf_files"] += subfolder_stats["pdf_files"]
+                        stats["other_files"] += subfolder_stats["other_files"]
+                        
+                    elif "file" in item:
+                        # It's a file
+                        stats["total_files"] += 1
+                        stats["total_size"] += item.get("size", 0)
+                        
+                        # Check if it's a PDF
+                        filename = item.get("name", "").lower()
+                        if filename.endswith('.pdf'):
+                            stats["pdf_files"] += 1
+                        else:
+                            stats["other_files"] += 1
+                            
+            except Exception as e:
+                logger.warning(f"Error processing folder {current_folder_id}: {e}")
+                
+            return stats
+        
+        # Calculate stats starting from the specified folder
+        result = calculate_folder_stats(folder_id)
+        
+        # Add formatted size for display
+        result["formatted_size"] = format_file_size(result["total_size"])
+        
+        return JSONResponse(result)
+        
+    except Exception as e:
+        logger.error(f"Error in get_folder_stats: {e}", exc_info=True)
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+def format_file_size(size_bytes):
+    """Format file size in human readable format"""
+    if size_bytes == 0:
+        return "0 B"
+    
+    size_names = ["B", "KB", "MB", "GB", "TB"]
+    import math
+    i = int(math.floor(math.log(size_bytes, 1024)))
+    p = math.pow(1024, i)
+    s = round(size_bytes / p, 2)
+    return f"{s} {size_names[i]}"

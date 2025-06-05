@@ -3,7 +3,7 @@ from fastapi import FastAPI, Request
 from dotenv import load_dotenv
 from app.api import sharepoint
 from fastapi.middleware.cors import CORSMiddleware
-from app.api import ocr
+from app.api.ocr import router as ocr_router
 import sys
 from app.api import users
 from app.api import activity
@@ -12,9 +12,10 @@ from app.api import settings
 from app.routers.blocks import router as blocks_router
 from app.api import cache
 from app.api import preload
+from app.api import search
+from app.api import images
+from app.api.thumbnails import routes as thumbnails_router # Updated import
 from app.startup import setup_startup_tasks, preload_health_check
-
-
 
 load_dotenv()
 
@@ -23,8 +24,6 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
         "http://localhost:5173",
         "http://localhost:5174",
     ],  # You can use ["*"] for development, but it's not safe for production
@@ -34,7 +33,7 @@ app.add_middleware(
 )
 
 app.include_router(sharepoint.router, prefix="/api/sharepoint", tags=["sharepoint"])
-app.include_router(ocr.router, prefix="/api/ocr")
+app.include_router(ocr_router, prefix="/api/ocr")
 app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(activity.router, prefix="/api/notifications/activity", tags=["activity"])
 app.include_router(content_router, prefix="/api/content/files", tags=["content"])
@@ -42,6 +41,9 @@ app.include_router(settings.router, prefix="/api/settings", tags=["settings"])
 app.include_router(blocks_router, prefix="/api/blocks")
 app.include_router(cache.router, prefix="/api/cache", tags=["cache"])
 app.include_router(preload.router, prefix="/api/preload", tags=["preload"])
+app.include_router(search.router, prefix="/api/search", tags=["search"])
+app.include_router(images.router, prefix="/api/images", tags=["images"])
+app.include_router(thumbnails_router.router, prefix="/api/thumbnails", tags=["thumbnails"]) # Updated router
 
 @app.get("/health")
 def health_check():

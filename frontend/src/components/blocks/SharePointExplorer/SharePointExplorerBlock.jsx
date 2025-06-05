@@ -65,10 +65,26 @@ import SharePointExplorerBlockWrapper from './SharePointExplorerBlockWrapper';
  * SharePoint Explorer Block with integrated metrics tracking
  * Tracks user interactions, file access patterns, and performance metrics
  */
-const SharePointExplorerBlock = ({ config, onExecutionUpdate, onSelectionChange, multiSelect = true }) => { // Added onSelectionChange & multiSelect
+const SharePointExplorerBlock = ({ config, onExecutionUpdate, onSelectionChange, multiSelect = true }) => { // Removed metrics props - will get from wrapper
   //const theme = useTheme(); // Added for ExplorerCardGrid styling if needed directly here later
 
   const [currentPath, setCurrentPath] = useState([]); // Initialize currentPath state
+  const [metricsExpanded, setMetricsExpanded] = useState(false);
+  
+  // State to hold metrics from the wrapper
+  const [metricsData, setMetricsData] = useState({
+    metrics: {
+      currentFolderCount: 0,
+      currentFileCount: 0,
+      librariesExplored: new Set(),
+      averageResponseTime: 0,
+      totalDataTransferred: 0,
+      totalInteractions: 0,
+      totalItemsLoaded: 0
+    },
+    setMetrics: () => {},
+    getSessionDuration: () => '0s'
+  });
 
   // Placeholder for navigation logic
   const handleNavigateBack = useCallback(() => {
@@ -81,15 +97,19 @@ const SharePointExplorerBlock = ({ config, onExecutionUpdate, onSelectionChange,
     }
   }, [currentPath, setCurrentPath]);
 
-  const [metricsExpanded, setMetricsExpanded] = useState(false);
-const metrics = { currentFolderCount: 0, currentFileCount: 0, librariesExplored: new Set(), averageResponseTime: 0, totalDataTransferred: 0, totalInteractions: 0, totalItemsLoaded: 0 }; // Placeholder for metrics data
-
-// Placeholder for getSessionDuration
-const getSessionDuration = () => '0s';
+  // Callback to receive metrics from wrapper
+  const handleMetricsUpdate = useCallback((newMetricsData) => {
+    setMetricsData(newMetricsData);
+  }, []);
 
 return (
   <Box>
-    <SharePointExplorerMetrics metrics={metrics} metricsExpanded={metricsExpanded} setMetricsExpanded={setMetricsExpanded} getSessionDuration={getSessionDuration} />
+    <SharePointExplorerMetrics
+      metrics={metricsData.metrics}
+      metricsExpanded={metricsExpanded}
+      setMetricsExpanded={setMetricsExpanded}
+      getSessionDuration={metricsData.getSessionDuration}
+    />
 
         <SharePointExplorerHeader currentPath={currentPath} handleNavigateBack={handleNavigateBack} />
 
@@ -98,6 +118,7 @@ return (
           onSelectionChange={onSelectionChange}
           onExecutionUpdate={onExecutionUpdate}
           multiSelect={multiSelect}
+          onMetricsUpdate={handleMetricsUpdate}
         />
     </Box>
   );

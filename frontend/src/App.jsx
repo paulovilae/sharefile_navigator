@@ -6,6 +6,9 @@ import Space from "./Space"; // Added import for Space component
 // import DashboardPage from "./DashboardPage"; // Removed, file deleted
 import FolderIcon from '@mui/icons-material/Folder';
 import TextFieldsIcon from '@mui/icons-material/TextFields';
+import SearchIcon from '@mui/icons-material/Search';
+import PhotoLibraryIcon from '@mui/icons-material/PhotoLibrary';
+import MonitorHeartIcon from '@mui/icons-material/MonitorHeart';
 import MyLayout from "./admin/MyLayout";
 import { LocalizationList, LocalizationEdit, LocalizationCreate } from './resources/localizations';
 import christusTheme, { christusDarkTheme } from './theme/christusTheme';
@@ -14,6 +17,9 @@ import defaultDarkTheme from './theme/defaultDarkTheme';
 import BlocksPage from './admin/pages/blocks/BlocksAdminPage';
 import SidebarMenuEditor from './admin/SidebarMenuEditor';
 import OcrWorkflow from './components/OcrWorkflow';
+import ImageSearchPage from './components/ImageSearchPage';
+import ThumbnailDemo from './components/ThumbnailDemo';
+import ProcessHealthMonitor from './components/ProcessHealthMonitor';
 import { Route } from 'react-router-dom';
 
 const themeMap = {
@@ -88,6 +94,9 @@ export default function App() {
       <CustomRoutes>
         <Route path="/admin/sidebar-menus" element={<SidebarMenuEditor />} />
         <Route path="/ocr-workflow" element={<OcrWorkflow />} />
+        <Route path="/image-search" element={<ImageSearchPage />} />
+        <Route path="/thumbnail-demo" element={<ThumbnailDemo />} />
+        <Route path="/process-health" element={<ProcessHealthMonitor />} />
       </CustomRoutes>
       <Resource
         name="sharepoint/libraries"
@@ -110,6 +119,24 @@ export default function App() {
         options={{ label: "OCR Workflow" }}
         list={OcrWorkflow}
         icon={TextFieldsIcon}
+      />
+      <Resource
+        name="image-search"
+        options={{ label: "Image Search" }}
+        list={ImageSearchPage}
+        icon={SearchIcon}
+      />
+      <Resource
+        name="thumbnail-demo"
+        options={{ label: "Thumbnail Demo" }}
+        list={ThumbnailDemo}
+        icon={PhotoLibraryIcon}
+      />
+      <Resource
+        name="process-health"
+        options={{ label: "Process Health" }}
+        list={ProcessHealthMonitor}
+        icon={MonitorHeartIcon}
       />
       <Resource
         name="workflow-engine"

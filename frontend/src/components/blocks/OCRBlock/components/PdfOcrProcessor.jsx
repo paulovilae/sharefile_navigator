@@ -32,10 +32,26 @@ const PdfOcrProcessor = ({ config, selectedFiles = [], onMetricsUpdate, onExecut
   
   // Simplified settings - removed complex retry and quality assessment logic
   const [settings, setSettings] = useState({
+    // PDF Conversion Settings
     dpi: 300,
+    imageFormat: 'PNG',
+    colorMode: 'RGB',
+    pageRange: 'all',
+    pageStart: 1,
+    pageEnd: 1,
+    
+    // OCR Engine Settings
     ocrEngine: 'easyocr',
     language: 'spa',
-    batchSize: 5
+    confidenceThreshold: 0.7,
+    enableGpuAcceleration: true,
+    batchSize: 5,
+    autoSave: true,
+    
+    // Retry Settings
+    retryOnFailure: false,
+    maxRetries: 2,
+    autoImproveParams: false
   });
 
   // Custom hooks for metrics and file processing
@@ -62,6 +78,9 @@ const PdfOcrProcessor = ({ config, selectedFiles = [], onMetricsUpdate, onExecut
       
       setCurrentStep('extracting');
       
+      // Extract file_id for SharePoint files to enable database saving
+      const fileId = pdfFile.id || pdfFile.file_id || null;
+      
       // Call backend API with simplified approach
       const endpoint = '/api/ocr/pdf_ocr';
       const requestData = {
@@ -70,7 +89,10 @@ const PdfOcrProcessor = ({ config, selectedFiles = [], onMetricsUpdate, onExecut
         settings: settings
       };
       
-      const response = await axios.post(endpoint, requestData);
+      // Add file_id as query parameter if available (required for database saving)
+      const url = fileId ? `${endpoint}?file_id=${encodeURIComponent(fileId)}` : endpoint;
+      
+      const response = await axios.post(url, requestData);
       const apiResult = response.data;
       
       // Track metrics for block metrics functionality
@@ -81,12 +103,16 @@ const PdfOcrProcessor = ({ config, selectedFiles = [], onMetricsUpdate, onExecut
       });
       
       // Create result object
+      console.log('DEBUG: Creating result object with fileId:', fileId);
+      console.log('DEBUG: API response pages:', apiResult.pages);
+      
       const result = {
-        id: Date.now(),
+        id: fileId || Date.now(), // Use SharePoint file ID instead of timestamp
         filename: apiResult.filename,
         pageCount: apiResult.pageCount,
         pages: apiResult.pages.map(page => ({
           ...page,
+          fileId: fileId, // Ensure each page has the correct file ID
           imageUrl: `http://localhost:8000${page.imageUrl}`
         })),
         totalWords: apiResult.totalWords,
@@ -94,6 +120,8 @@ const PdfOcrProcessor = ({ config, selectedFiles = [], onMetricsUpdate, onExecut
         processingTime: apiResult.processingTime,
         status: apiResult.status
       };
+      
+      console.log('DEBUG: Final result object:', result);
       
       setPdfResults(prev => [...prev, result]);
       

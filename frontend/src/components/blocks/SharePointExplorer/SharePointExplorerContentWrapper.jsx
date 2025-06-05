@@ -4,6 +4,7 @@ import useSharePointState from './hooks/useSharePointState';
 import useSharePointApi from './hooks/useSharePointApi';
 import useSharePointHandlers from './hooks/useSharePointHandlers'; // Added useSharePointHandlers
 import useSharePointMetrics from './hooks/useSharePointMetrics';
+import useSharePointSelection from './hooks/useSharePointSelection';
 
 const SharePointExplorerContentWrapper = ({
   config,
@@ -12,6 +13,12 @@ const SharePointExplorerContentWrapper = ({
   multiSelect,
   metrics,
   setMetrics,
+  trackInteraction,
+  trackResponseTime,
+  updateCurrentView,
+  trackCacheHit,
+  trackCacheMiss,
+  trackDataTransfer,
   selectedItems,
   handleSelectItem,
   isItemSelected,
@@ -19,6 +26,7 @@ const SharePointExplorerContentWrapper = ({
   setSelectedItems,
   prevDetailedSelectionComparableRef,
 }) => {
+
   const {
     libraries, setLibraries,
     selectedLibrary, setSelectedLibrary,
@@ -28,6 +36,16 @@ const SharePointExplorerContentWrapper = ({
     error, setError,
     fileStatuses, setFileStatuses,
   } = useSharePointState();
+
+  // Add the selection hook here where we have access to items
+  const {
+    selectedItems: selectionSelectedItems,
+    handleSelectItem: selectionHandleSelectItem,
+    isItemSelected: selectionIsItemSelected,
+    handleFileSelectionChange: selectionHandleFileSelectionChange,
+    setSelectedItems: selectionSetSelectedItems,
+    prevDetailedSelectionComparableRef: selectionPrevDetailedSelectionComparableRef
+  } = useSharePointSelection(items, multiSelect, onSelectionChange, onExecutionUpdate);
 
   const { fetchLibraries, fetchFolderContents } = useSharePointApi(setLibraries, setLoading, setError);
 
@@ -45,8 +63,13 @@ const SharePointExplorerContentWrapper = ({
     setItems,
     setLoading,
     setError,
-    fetchFolderContents
+    fetchFolderContents,
+    // Pass metrics tracking functions
+    trackInteraction,
+    updateCurrentView,
+    trackResponseTime
   );
+
 
   // Fetch libraries on component mount
   useEffect(() => {
@@ -71,20 +94,20 @@ const SharePointExplorerContentWrapper = ({
       handleLibrarySelect={handleLibrarySelect} // Pass down actual handler
       handleFolderClick={handleFolderClick}   // Pass down actual handler
       handleBackNavigation={handleBackNavigation} // Pass down back navigation handler
-      selectedItems={selectedItems}
-      handleSelectItem={handleSelectItem || handlerHandleSelectItem} // Use prop if provided, else from hook
-      isItemSelected={isItemSelected || handlerIsItemSelected}     // Use prop if provided, else from hook
-      handleFileSelectionChange={handleFileSelectionChange || handlerHandleFileSelectionChange} // Use prop if provided, else from hook
+      selectedItems={selectionSelectedItems}
+      handleSelectItem={selectionHandleSelectItem} // Use selection hook
+      isItemSelected={selectionIsItemSelected}     // Use selection hook
+      handleFileSelectionChange={selectionHandleFileSelectionChange} // Use selection hook
       fileStatuses={fileStatuses}
       setFileStatuses={setFileStatuses}
-      prevDetailedSelectionComparableRef={prevDetailedSelectionComparableRef}
+      prevDetailedSelectionComparableRef={selectionPrevDetailedSelectionComparableRef}
       metrics={metrics}
       setMetrics={setMetrics}
       config={config}
       onSelectionChange={onSelectionChange}
       onExecutionUpdate={onExecutionUpdate}
       multiSelect={multiSelect}
-      setSelectedItems={setSelectedItems}
+      setSelectedItems={selectionSetSelectedItems}
     />
   );
 };

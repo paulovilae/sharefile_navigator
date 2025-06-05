@@ -26,6 +26,7 @@ import {
 
 import SharePointExplorerBlock from './blocks/SharePointExplorer/SharePointExplorerBlock';
 import OCRBlock from './blocks/OCRBlock'; // Unified OCR Block import
+import BatchOcrProcessor from './BatchOcrProcessor';
 import { blockTemplate } from '../theme/blockTemplate';
 
 const OcrWorkflow = () => {
@@ -140,10 +141,9 @@ const OcrWorkflow = () => {
             case 'pdf-preprocessing':
                 return (
                     <Box>
-                        <OCRBlock
-                            config={{}} // Add any specific config if needed
-                            onExecutionUpdate={handlePdfOcrUpdate}
+                        <BatchOcrProcessor
                             selectedFiles={selectedFiles}
+                            onProcessingUpdate={handlePdfOcrUpdate}
                         />
                     </Box>
                 );

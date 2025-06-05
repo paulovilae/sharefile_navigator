@@ -42,9 +42,17 @@ const useSharePointApi = (setLibraries, setLoading, setError) => {
       const folders = foldersResponse.ok ? await foldersResponse.json() : [];
       const files = filesResponse.ok ? await filesResponse.json() : [];
 
-      // Mark folders and files with type
-      const foldersWithType = folders.map(folder => ({ ...folder, type: 'folder' }));
-      const filesWithType = files.map(file => ({ ...file, type: 'file' }));
+      // Mark folders and files with type and add drive_id
+      const foldersWithType = folders.map(folder => ({
+        ...folder,
+        type: 'folder',
+        drive_id: libraryId // Add drive_id to folders
+      }));
+      const filesWithType = files.map(file => ({
+        ...file,
+        type: 'file',
+        drive_id: libraryId // Add drive_id to files
+      }));
 
       const combinedData = [...foldersWithType, ...filesWithType];
       setLoading(false);

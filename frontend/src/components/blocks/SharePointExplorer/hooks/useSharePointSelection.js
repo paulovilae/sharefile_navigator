@@ -6,10 +6,14 @@ const useSharePointSelection = (items, multiSelect, onSelectionChange, onExecuti
   const prevDetailedSelectionComparableRef = useRef(JSON.stringify([]));
 
   const handleSelectItem = useCallback((item, isFolder) => {
-    if (!isFolder) {
-      return;
-    }
+    console.log('🔍 handleSelectItem called:', {
+      itemName: item.name,
+      itemId: item.id,
+      isFolder,
+      itemType: item.type
+    });
     const itemId = isFolder ? `folder-${item.id}` : `file-${item.id}`;
+    console.log('🔍 Generated itemId:', itemId);
     setSelectedItems(prev => {
       let newSelection;
       if (prev.includes(itemId)) {
@@ -26,21 +30,91 @@ const useSharePointSelection = (items, multiSelect, onSelectionChange, onExecuti
   }, [multiSelect]);
 
   const isItemSelected = useCallback((item, isFolder) => {
-    if (!isFolder) {
-      return;
-    }
     const itemId = isFolder ? `folder-${item.id}` : `file-${item.id}`;
     return selectedItems.includes(itemId);
   }, [selectedItems]);
 
-  const handleFileSelectionChange = useCallback((selectedFileIds) => {
+
+  const fetchFolderContentsRecursively = useCallback(async (folder, selectedLibrary, currentFiles = []) => {
+    if (!folder?.id) {
+      console.warn("Invalid folder provided:", folder);
+      return currentFiles;
+    }
+
+    console.log(`Fetching contents for folder: ${folder.name} (${folder.id})`);
+    try {
+      const response = await fetch(`/api/sharepoint/list_files?libraryId=${selectedLibrary.id}&folderId=${folder.id}`);
+      if (!response.ok) {
+        console.error(`Failed to fetch contents for folder ${folder.name}: ${response.status}`);
+        return currentFiles;
+      }
+      const folderContents = await response.json();
+
+      if (!folderContents?.value) {
+        console.warn(`No contents found for folder: ${folder.name}`);
+        return currentFiles;
+      }
+
+      const files = folderContents.value.filter(item => item.file);
+      const subfolders = folderContents.value.filter(item => item.folder);
+
+      files.forEach(file => {
+        currentFiles.push(file);
+      });
+
+      for (const subfolder of subfolders) {
+        await fetchFolderContentsRecursively(subfolder, selectedLibrary, currentFiles);
+      }
+
+      return currentFiles;
+    } catch (error) {
+      console.error(`Error fetching contents for folder ${folder.name}:`, error);
+      return currentFiles;
+    }
+  }, []);
+
+  const handleFileSelectionChange = useCallback(async (selectedFileIds) => {
+    console.log('🔍 handleFileSelectionChange called with:', JSON.stringify(selectedFileIds));
+    console.log('🔍 Current selectedItems:', JSON.stringify(selectedItems));
+    console.log('🔍 Available items:', JSON.stringify(items?.map(i => ({ id: i.id, name: i.name, type: i.type }))));
+
     const folderSelections = selectedItems.filter(id => id.startsWith('folder-'));
-    const newFileSelections = selectedFileIds
+    let newFileSelections = selectedFileIds
       .filter(fileId => {
-        const file = items.find(item => item.type === 'file' && String(item.id) === fileId);
+        // Strip the "file-" prefix if it exists to match the actual item.id
+        const actualFileId = fileId.startsWith('file-') ? fileId.substring(5) : fileId;
+        const file = items && items.find(item => item.type === 'file' && String(item.id) === actualFileId);
+        console.log('🔍 Checking file:', JSON.stringify({ fileId, actualFileId, fileName: file?.name, isPdf: file?.name.toLowerCase().endsWith('.pdf') }));
         return file && file.name.toLowerCase().endsWith('.pdf');
       })
-      .map(id => `file-${id}`);
+      .map(id => {
+        // Ensure we add the "file-" prefix for internal tracking, but strip it first if it already exists
+        const actualId = id.startsWith('file-') ? id.substring(5) : id;
+        return `file-${actualId}`;
+      });
+
+    console.log('🔍 folderSelections:', JSON.stringify(folderSelections));
+    console.log('🔍 newFileSelections:', JSON.stringify(newFileSelections));
+
+    // Process folder selections
+    if (folderSelections.length > 0) {
+      let allFilesFromFolders = [];
+      for (const folderId of folderSelections) {
+        const actualFolderId = folderId.substring(7); // Remove "folder-" prefix
+        const folder = items && items.find(item => item.type === 'folder' && String(item.id) === actualFolderId);
+        if (folder) {
+          const files = await fetchFolderContentsRecursively(folder, selectedLibrary);
+          allFilesFromFolders = [...allFilesFromFolders, ...files];
+        }
+      }
+
+      // Convert files from folders to file selections
+      const filesFromFoldersSelections = allFilesFromFolders
+        .filter(file => file.name.toLowerCase().endsWith('.pdf'))
+        .map(file => `file-${file.id}`);
+
+      newFileSelections = [...newFileSelections, ...filesFromFoldersSelections];
+    }
 
     if (multiSelect) {
       setSelectedItems([...folderSelections, ...newFileSelections]);
@@ -53,7 +127,7 @@ const useSharePointSelection = (items, multiSelect, onSelectionChange, onExecuti
         setSelectedItems([]);
       }
     }
-  }, [selectedItems, multiSelect, items]);
+  }, [selectedItems, multiSelect, items, fetchFolderContentsRecursively, selectedLibrary]);
 
   const handleProcessSelectedWithOcr = useCallback(async () => {
     if (!selectedItems.length) {
@@ -76,7 +150,7 @@ const useSharePointSelection = (items, multiSelect, onSelectionChange, onExecuti
       let itemToProcess = null;
       let driveId = selectedLibrary.id;
 
-      const sourceItem = items.find(i => String(i.id) === id && i.type === type);
+      const sourceItem = items && items.find(i => String(i.id) === id && i.type === type);
 
       if (sourceItem) {
         itemToProcess = {
@@ -134,7 +208,7 @@ const useSharePointSelection = (items, multiSelect, onSelectionChange, onExecuti
         const [type, ...idParts] = idString.split(/-(.+)/);
         const id = idParts.join('');
 
-        const sourceList = items;
+        const sourceList = items || [];
         const originalItem = sourceList.find(i => String(i.id) === id && i.type === type);
 
         if (originalItem) {

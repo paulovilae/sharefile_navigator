@@ -7,6 +7,7 @@ import {
   Grid,
   useTheme
 } from '@mui/material';
+import Checkbox from '@mui/material/Checkbox';
 
 const ExplorerCardGrid = ({
     data,
@@ -38,7 +39,7 @@ const ExplorerCardGrid = ({
                 const isDisabled = selectionMode && !isFileDigitizable;
                 
                 return (
-                    <Grid item key={record.id}>
+                    <Grid item key={record.id} sx={{ display: 'flex', flexDirection: 'column' }}>
                         <Card
                             sx={{
                                 width: cardWidth,
@@ -48,7 +49,7 @@ const ExplorerCardGrid = ({
                                 border: selected ? `2px solid ${theme.palette.primary.main}` : `1px solid ${theme.palette.divider}`,
                                 transition: 'box-shadow 0.2s, transform 0.2s, border 0.2s',
                                 cursor: isDisabled ? 'not-allowed' : 'pointer',
-                                display: 'flex',
+                                // display: 'flex',
                                 flexDirection: 'column',
                                 justifyContent: 'center',
                                 alignItems: 'center',
@@ -61,6 +62,21 @@ const ExplorerCardGrid = ({
                                 bgcolor: selected ? theme.palette.action.selected : 'background.paper',
                             }}
                         >
+                          <Box sx={{ position: 'absolute', top: 2, right: 2, zIndex: 1 }}>
+                            {itemType === 'folder' && selectionMode && (
+                              <Checkbox
+                                checked={selected}
+                                disabled={isDisabled}
+                                onChange={(e) => {
+ 
+                                  handleSelectItem(record, true);
+                                  e.stopPropagation(); // Prevent card click
+                                }}
+                                color="primary"
+                                size="small"
+                              />
+                            )}
+                          </Box>
                             <CardContent
                                 sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', p: 1, flexGrow: 1, width: '100%', cursor: isDisabled ? 'not-allowed' : 'pointer'}}
                                 onClick={() => !isDisabled && onCardClick(record)}

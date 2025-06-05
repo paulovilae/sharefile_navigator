@@ -20,6 +20,11 @@ import {
   DialogActions,
   Button,
   CircularProgress,
+  Checkbox,
+  FormControl,
+  Select,
+  MenuItem,
+  InputLabel,
 } from '@mui/material';
 import {
   PictureAsPdf as PictureAsPdfIcon,
@@ -124,6 +129,12 @@ function getOcrStatusDisplay(status) {
         text: 'Needs Review',
         color: '#ff9800'
       };
+    case 'not_processed':
+      return {
+        icon: <NotInterestedIcon sx={{ fontSize: 16, color: '#757575' }} />,
+        text: 'Not processed',
+        color: '#757575'
+      };
     default:
       return {
         icon: <NotInterestedIcon sx={{ fontSize: 16, color: '#757575' }} />,
@@ -139,6 +150,7 @@ const SharePointFileTable = ({ files, selectedLibrary, onPreview, selectedFiles 
   const [nameFilter, setNameFilter] = useState('');
   const [createdByFilter, setCreatedByFilter] = useState('');
   const [modifiedByFilter, setModifiedByFilter] = useState('');
+  const [fileTypeFilter, setFileTypeFilter] = useState('all'); // New file type filter
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [ocrStatuses, setOcrStatuses] = useState({});
@@ -149,7 +161,20 @@ const SharePointFileTable = ({ files, selectedLibrary, onPreview, selectedFiles 
     const fetchOcrStatuses = async () => {
       const pdfFiles = files.filter(file => file.name.toLowerCase().endsWith('.pdf'));
       
-      const statusPromises = pdfFiles.map(async (file) => {
+      // Only fetch status for files we haven't checked yet or that might have changed
+      const filesToCheck = pdfFiles.filter(file => {
+        const existingStatus = ocrStatuses[file.id];
+        // Skip files that are already fully processed
+        return !existingStatus || !['ocr_processed', 'text_extracted'].includes(existingStatus);
+      });
+
+      console.log(`[SharePointFileTable] Checking OCR status for ${filesToCheck.length}/${pdfFiles.length} PDF files (skipping ${pdfFiles.length - filesToCheck.length} already processed)`);
+      
+      if (filesToCheck.length === 0) {
+        return; // No files need status checking
+      }
+
+      const statusPromises = filesToCheck.map(async (file) => {
         try {
           const url = `/api/ocr/status/${file.id}`;
           const response = await fetch(url);
@@ -165,18 +190,19 @@ const SharePointFileTable = ({ files, selectedLibrary, onPreview, selectedFiles 
       });
 
       const statuses = await Promise.all(statusPromises);
-      const statusMap = {};
-      statuses.forEach(({ fileId, status }) => {
-        statusMap[fileId] = status;
+      setOcrStatuses(prevStatuses => {
+        const newStatusMap = { ...prevStatuses }; // Preserve existing statuses
+        statuses.forEach(({ fileId, status }) => {
+          newStatusMap[fileId] = status;
+        });
+        return newStatusMap;
       });
-      
-      setOcrStatuses(statusMap);
     };
 
     if (files.length > 0) {
       fetchOcrStatuses();
     }
-  }, [files]);
+  }, [files]); // Removed ocrStatuses dependency to prevent infinite loop
 
   // Update sort logic for nested fields
   const getSortValue = (file, field) => {
@@ -207,9 +233,18 @@ const SharePointFileTable = ({ files, selectedLibrary, onPreview, selectedFiles 
       const createdByMatch = createdBy.toLowerCase().includes(createdByFilter.toLowerCase());
       const modifiedBy = file.lastModifiedBy?.displayName || file.lastModifiedBy?.email || '';
       const modifiedByMatch = modifiedBy.toLowerCase().includes(modifiedByFilter.toLowerCase());
-      return nameMatch && createdByMatch && modifiedByMatch;
+      
+      // File type filter
+      let fileTypeMatch = true;
+      if (fileTypeFilter === 'pdf') {
+        fileTypeMatch = file.name.toLowerCase().endsWith('.pdf');
+      } else if (fileTypeFilter === 'all') {
+        fileTypeMatch = true;
+      }
+      
+      return nameMatch && createdByMatch && modifiedByMatch && fileTypeMatch;
     });
-  }, [sortedFiles, nameFilter, createdByFilter, modifiedByFilter]);
+  }, [sortedFiles, nameFilter, createdByFilter, modifiedByFilter, fileTypeFilter]);
 
   // Pagination for files
   const paginatedFiles = filteredFiles.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
@@ -261,16 +296,16 @@ const SharePointFileTable = ({ files, selectedLibrary, onPreview, selectedFiles 
       return;
     }
     
-    const newSelection = selectedFiles.includes(fileId)
+    const newSelection = selectedFiles && selectedFiles.includes(fileId)
       ? selectedFiles.filter(id => id !== fileId)
-      : [...selectedFiles, fileId];
+      : [...(selectedFiles || []), fileId];
     
     onFileSelectionChange(newSelection);
   };
 
   const selectableFiles = selectionMode ? filteredFiles.filter(file => isDigitizable(file.name)) : filteredFiles;
-  const isAllSelected = selectableFiles.length > 0 && selectableFiles.every(file => selectedFiles.includes(file.id));
-  const isIndeterminate = selectedFiles.length > 0 && !isAllSelected;
+  const isAllSelected = selectableFiles.length > 0 && selectedFiles && selectableFiles.every(file => selectedFiles.includes(file.id));
+  const isIndeterminate = selectedFiles && selectedFiles.length > 0 && !isAllSelected;
 
   // Function to view OCR text for a file
   const handleViewOcrText = async (file) => {
@@ -330,30 +365,47 @@ const SharePointFileTable = ({ files, selectedLibrary, onPreview, selectedFiles 
   }
 
   return (
-    <TableContainer component={Paper} sx={{ mt: 2 }}>
-      <Table size="small">
-        <TableHead>
-          <TableRow>
-            <TableCell padding="checkbox">
-              <input
-                type="checkbox"
-                checked={isAllSelected}
-                ref={input => {
-                  if (input) input.indeterminate = isIndeterminate;
-                }}
-                onChange={handleSelectAll}
-              />
-            </TableCell>
-            <TableCell sx={{ width: 32, fontWeight: 600, color: '#512698' }}>#</TableCell>
-            <TableCell sortDirection={sortField === 'name' ? sortOrder : false}>
-              <TableSortLabel
-                active={sortField === 'name'}
-                direction={sortField === 'name' ? sortOrder : 'asc'}
-                onClick={() => handleSort('name')}
-              >
-                Name
-              </TableSortLabel>
-            </TableCell>
+    <Box>
+      {/* File Type Filter Controls */}
+      <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+        <FormControl size="small" sx={{ minWidth: 120 }}>
+          <InputLabel>File Type</InputLabel>
+          <Select
+            value={fileTypeFilter}
+            label="File Type"
+            onChange={(e) => setFileTypeFilter(e.target.value)}
+          >
+            <MenuItem value="all">All Files</MenuItem>
+            <MenuItem value="pdf">PDF Only</MenuItem>
+          </Select>
+        </FormControl>
+        <Typography variant="body2" color="text.secondary">
+          Showing {filteredFiles.length} of {files.length} files
+        </Typography>
+      </Box>
+
+      <TableContainer component={Paper} sx={{ mt: 2 }}>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell padding="checkbox">
+                <Checkbox
+                  checked={isAllSelected}
+                  indeterminate={isIndeterminate}
+                  onChange={handleSelectAll}
+                  size="small"
+                />
+              </TableCell>
+              <TableCell sx={{ width: 32, fontWeight: 600, color: '#512698' }}>#</TableCell>
+              <TableCell sortDirection={sortField === 'name' ? sortOrder : false}>
+                <TableSortLabel
+                  active={sortField === 'name'}
+                  direction={sortField === 'name' ? sortOrder : 'asc'}
+                  onClick={() => handleSort('name')}
+                >
+                  Name
+                </TableSortLabel>
+              </TableCell>
             <TableCell align="right" sortDirection={sortField === 'size' ? sortOrder : false}>
               <TableSortLabel
                 active={sortField === 'size'}
@@ -404,6 +456,7 @@ const SharePointFileTable = ({ files, selectedLibrary, onPreview, selectedFiles 
           </TableRow>
           <TableRow>
             <TableCell />
+            <TableCell />
             <TableCell>
               <TextField
                 value={nameFilter}
@@ -415,7 +468,6 @@ const SharePointFileTable = ({ files, selectedLibrary, onPreview, selectedFiles 
                 InputProps={{ sx: { fontSize: 13 } }}
               />
             </TableCell>
-            <TableCell />
             <TableCell />
             <TableCell />
             <TableCell>
@@ -442,6 +494,7 @@ const SharePointFileTable = ({ files, selectedLibrary, onPreview, selectedFiles 
               />
             </TableCell>
             <TableCell />
+            <TableCell />
           </TableRow>
         </TableHead>
         <TableBody>
@@ -459,15 +512,15 @@ const SharePointFileTable = ({ files, selectedLibrary, onPreview, selectedFiles 
                   cursor: isFileDisabled ? 'not-allowed' : 'default'
                 }}
               >
-                <TableCell padding="checkbox">
-                  <input
-                    type="checkbox"
-                    checked={selectedFiles.includes(file.id)}
-                    onChange={() => handleSelectFile(file.id, file.name)}
-                    disabled={isFileDisabled}
-                    style={{ opacity: isFileDisabled ? 0.3 : 1 }}
-                  />
-                </TableCell>
+              <TableCell padding="checkbox">
+                <Checkbox
+                  checked={selectedFiles && selectedFiles.includes(file.id)}
+                  onChange={() => handleSelectFile(file.id, file.name)}
+                  disabled={isFileDisabled}
+                  size="small"
+                  sx={{ opacity: isFileDisabled ? 0.3 : 1 }}
+                />
+              </TableCell>
                 <TableCell sx={{ width: 32, fontWeight: 500, color: isFileDisabled ? '#BDBDBD' : '#512698' }}>
                   {page * rowsPerPage + idx + 1}
                 </TableCell>
@@ -738,7 +791,8 @@ const SharePointFileTable = ({ files, selectedLibrary, onPreview, selectedFiles 
           )}
         </DialogActions>
       </Dialog>
-    </TableContainer>
+      </TableContainer>
+    </Box>
   );
 };
 

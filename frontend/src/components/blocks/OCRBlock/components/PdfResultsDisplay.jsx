@@ -22,14 +22,20 @@ import {
   Image as ImageIcon,
   ZoomIn as ZoomIcon,
   Save as SaveIcon,
-  History as HistoryIcon
+  History as HistoryIcon,
+  PictureAsPdf as PdfIcon,
+  Download as DownloadIcon
 } from '@mui/icons-material';
+import ThumbnailViewer from '../../../ThumbnailViewer';
 
 /**
  * PDF Results Display Component - Shows processed PDF results with image previews
  */
 const PdfResultsDisplay = ({ results = [] }) => {
   const [selectedImageDialog, setSelectedImageDialog] = useState(null);
+  const [pdfDialogOpen, setPdfDialogOpen] = useState(false);
+  const [currentPdfUrl, setCurrentPdfUrl] = useState(null);
+  const [currentPdfTitle, setCurrentPdfTitle] = useState('');
 
   // Get processing status color
   const getStatusColor = (status) => {
@@ -42,6 +48,37 @@ const PdfResultsDisplay = ({ results = [] }) => {
       case 'failed': return 'error';
       default: return 'default';
     }
+  };
+
+  // Handle PDF viewing at document level
+  const handleViewPdf = (result) => {
+    // Use the first page's fileId to access the PDF (they all reference the same document)
+    const fileId = result.pages && result.pages.length > 0 ?
+      (result.pages[0].fileId || result.pages[0].id) : result.id;
+    const pdfViewUrl = `http://localhost:8000/api/thumbnails/pdf/${fileId}`;
+    setCurrentPdfUrl(pdfViewUrl);
+    setCurrentPdfTitle(result.filename);
+    setPdfDialogOpen(true);
+  };
+
+  // Handle PDF download at document level
+  const handleDownloadPdf = (result) => {
+    const fileId = result.pages && result.pages.length > 0 ?
+      (result.pages[0].fileId || result.pages[0].id) : result.id;
+    const downloadUrl = `http://localhost:8000/api/thumbnails/pdf/${fileId}`;
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = result.filename || `document_${fileId}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Handle closing PDF dialog
+  const handleClosePdfDialog = () => {
+    setPdfDialogOpen(false);
+    setCurrentPdfUrl(null);
+    setCurrentPdfTitle('');
   };
 
   if (results.length === 0) {
@@ -72,7 +109,7 @@ const PdfResultsDisplay = ({ results = [] }) => {
                   />
                 )}
               </Box>
-              <Box sx={{ display: 'flex', gap: 1 }}>
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
                 <Chip size="small" label={`${result.pageCount} pages`} />
                 <Chip size="small" label={`${result.totalWords} words`} />
                 <Chip size="small" label={`${result.processingTime}ms`} />
@@ -81,102 +118,93 @@ const PdfResultsDisplay = ({ results = [] }) => {
                   label={result.hasEmbeddedText ? 'Text Extracted' : 'OCR Processed'}
                   color={result.hasEmbeddedText ? 'success' : 'warning'}
                 />
+                {/* Document-level PDF actions */}
+                <Tooltip title="View PDF">
+                  <IconButton
+                    size="small"
+                    onClick={() => handleViewPdf(result)}
+                    sx={{
+                      bgcolor: 'primary.main',
+                      color: 'white',
+                      '&:hover': { bgcolor: 'primary.dark' }
+                    }}
+                  >
+                    <PdfIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Download PDF">
+                  <IconButton
+                    size="small"
+                    onClick={() => handleDownloadPdf(result)}
+                    sx={{
+                      bgcolor: 'secondary.main',
+                      color: 'white',
+                      '&:hover': { bgcolor: 'secondary.dark' }
+                    }}
+                  >
+                    <DownloadIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
               </Box>
             </Box>
             
-            {/* Page Images Grid */}
+            {/* Page Thumbnails Grid */}
             <Typography variant="subtitle2" gutterBottom>
               Pages ({result.pages.length})
             </Typography>
-            <ImageList cols={4} gap={8} sx={{ maxHeight: 300 }}>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, maxHeight: 300, overflow: 'auto' }}>
               {result.pages.map((page) => (
-                <ImageListItem 
-                  key={page.id}
-                  sx={{ 
-                    cursor: 'pointer',
-                    '&:hover': { opacity: 0.8 }
-                  }}
-                  onClick={() => setSelectedImageDialog(page)}
-                >
+                <Box key={page.id} sx={{ position: 'relative' }}>
+                  <ThumbnailViewer
+                    fileId={`${page.fileId || page.id}_page_${page.pageNumber}`}
+                    title={`Page ${page.pageNumber}`}
+                    showInfo={false}
+                    showPdfActions={false}
+                  />
                   <Box
                     sx={{
-                      width: '100%',
-                      height: 120,
-                      bgcolor: 'grey.200',
+                      position: 'absolute',
+                      bottom: 8,
+                      left: 8,
+                      right: 8,
                       display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      border: '1px solid',
-                      borderColor: 'grey.300',
-                      borderRadius: 1,
-                      overflow: 'hidden'
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
                     }}
                   >
-                    {page.imageUrl && page.imageUrl.trim() !== "" ? (
-                      <img
-                        src={page.imageUrl}
-                        alt={`Page ${page.pageNumber}`}
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          objectFit: 'cover'
-                        }}
-                        onError={(e) => {
-                          console.error('Image failed to load:', page.imageUrl);
-                          console.log('Page data:', page);
-                          e.target.style.display = 'none';
-                          e.target.nextSibling.style.display = 'flex';
-                        }}
-                        onLoad={() => {
-                          console.log('Image loaded successfully:', page.imageUrl);
-                        }}
-                      />
-                    ) : null}
-                    <Box
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexDirection: 'column',
-                        width: '100%',
-                        height: '100%',
-                        gap: 0.5
-                      }}
-                    >
-                      <ImageIcon sx={{ fontSize: 32, color: 'grey.500' }} />
-                      {page.status === 'preloaded' && (
-                        <Typography variant="caption" color="text.secondary" align="center" sx={{ fontSize: '0.6rem' }}>
-                          Text Available
-                        </Typography>
-                      )}
-                    </Box>
+                    <Typography variant="caption" sx={{
+                      bgcolor: 'rgba(0,0,0,0.7)',
+                      color: 'white',
+                      px: 0.5,
+                      borderRadius: 0.5,
+                      fontSize: '0.6rem'
+                    }}>
+                      {page.wordCount} words
+                    </Typography>
+                    <Chip
+                      size="small"
+                      label={page.status.replace('_', ' ')}
+                      color={getStatusColor(page.status)}
+                      sx={{ height: 16, fontSize: '0.6rem' }}
+                    />
                   </Box>
-                  <ImageListItemBar
-                    title={`Page ${page.pageNumber}`}
-                    subtitle={
-                      <Box>
-                        <Typography variant="caption" display="block">
-                          {page.wordCount} words
-                        </Typography>
-                        <Chip 
-                          size="small" 
-                          label={page.status.replace('_', ' ')} 
-                          color={getStatusColor(page.status)}
-                          sx={{ mt: 0.5, height: 16, fontSize: '0.6rem' }}
-                        />
-                      </Box>
-                    }
-                    actionIcon={
-                      <Tooltip title="View details">
-                        <IconButton sx={{ color: 'rgba(255, 255, 255, 0.54)' }}>
-                          <ZoomIcon />
-                        </IconButton>
-                      </Tooltip>
-                    }
-                  />
-                </ImageListItem>
+                  <IconButton
+                    size="small"
+                    onClick={() => setSelectedImageDialog(page)}
+                    sx={{
+                      position: 'absolute',
+                      top: 8,
+                      left: 8,
+                      bgcolor: 'rgba(0,0,0,0.6)',
+                      color: 'white',
+                      '&:hover': { bgcolor: 'rgba(0,0,0,0.8)' }
+                    }}
+                  >
+                    <ZoomIcon fontSize="small" />
+                  </IconButton>
+                </Box>
               ))}
-            </ImageList>
+            </Box>
           </CardContent>
         </Card>
       ))}
@@ -313,6 +341,54 @@ const PdfResultsDisplay = ({ results = [] }) => {
             </DialogActions>
           </>
         )}
+      </Dialog>
+
+      {/* PDF Viewer Dialog */}
+      <Dialog
+        open={pdfDialogOpen}
+        onClose={handleClosePdfDialog}
+        maxWidth="lg"
+        fullWidth
+        PaperProps={{
+          sx: { height: '90vh' }
+        }}
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <PdfIcon />
+          {currentPdfTitle || 'PDF Document'}
+        </DialogTitle>
+        
+        <DialogContent sx={{ p: 0, display: 'flex', flexDirection: 'column' }}>
+          {currentPdfUrl ? (
+            <iframe
+              src={currentPdfUrl}
+              style={{
+                width: '100%',
+                height: '100%',
+                border: 'none',
+                flexGrow: 1
+              }}
+              title={`PDF Viewer - ${currentPdfTitle}`}
+            />
+          ) : (
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: 200
+              }}
+            >
+              <Typography>Loading PDF...</Typography>
+            </Box>
+          )}
+        </DialogContent>
+        
+        <DialogActions>
+          <Button onClick={handleClosePdfDialog}>
+            Close
+          </Button>
+        </DialogActions>
       </Dialog>
     </Box>
   );

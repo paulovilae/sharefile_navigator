@@ -1,6 +1,7 @@
-from sqlalchemy import Column, String, Text, JSON, DateTime, Integer, ForeignKey, Boolean
+from sqlalchemy import Column, String, Text, JSON, DateTime, Integer, ForeignKey, Boolean, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func # Added for func.now()
 import datetime
 
 Base = declarative_base()
@@ -164,4 +165,193 @@ class SidebarMenu(Base):
     enabled = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
-    category = relationship('SidebarMenuCategory', back_populates='menus') 
+    category = relationship('SidebarMenuCategory', back_populates='menus')
+
+class SharePointOcrJob(Base):
+    __tablename__ = 'sharepoint_ocr_jobs'
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    drive_id = Column(String, nullable=False)
+    root_sharepoint_folder_id = Column(String, nullable=False)
+    status = Column(String, default='pending', nullable=False)
+    # e.g., pending, discovering_files, processing_discovery_batch,
+    # processing_ocr_batch, completed, failed, partially_completed
+    
+    total_folders_discovered = Column(Integer, default=0)
+    total_files_discovered = Column(Integer, default=0)
+    files_processed_count = Column(Integer, default=0)
+    files_skipped_count = Column(Integer, default=0)
+    files_failed_count = Column(Integer, default=0)
+    
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    discovered_items = relationship("SharePointDiscoveredItem", back_populates="job")
+
+class SharePointDiscoveredItem(Base):
+    __tablename__ = 'sharepoint_discovered_items'
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    job_id = Column(Integer, ForeignKey('sharepoint_ocr_jobs.id'), nullable=False)
+    sharepoint_item_id = Column(String, nullable=False)
+    item_name = Column(String, nullable=True)
+    item_path = Column(Text, nullable=True) # Full path for easier debugging
+    item_type = Column(String, nullable=False)  # 'file' or 'folder'
+    is_pdf = Column(Boolean, default=False)
+    status = Column(String, default='pending', nullable=False)
+    # e.g., pending, listed_children (for folders),
+    # ocr_queued, ocr_processing, ocr_completed, ocr_failed, ocr_skipped
+    
+    parent_sharepoint_id = Column(String, nullable=True)
+    discovered_at = Column(DateTime, default=func.now())
+    processed_at = Column(DateTime, nullable=True)
+
+    job = relationship("SharePointOcrJob", back_populates="discovered_items")
+
+    # Considering that SQLite might not support complex __table_args__ like UniqueConstraint directly in the model
+    # for some Alembic auto-generation scenarios, I'll omit it for now.
+    # If using PostgreSQL or MySQL, this would be:
+    # from sqlalchemy import UniqueConstraint
+    # __table_args__ = (UniqueConstraint('job_id', 'sharepoint_item_id', name='_job_item_uc'),)
+class BatchProcessingJob(Base):
+    __tablename__ = "batch_processing_jobs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    batch_id = Column(String(255), unique=True, nullable=False, index=True)
+    status = Column(String(50), nullable=False, index=True)
+    is_paused = Column(Boolean, nullable=False, default=False)
+    total_files = Column(Integer, nullable=False)
+    processed_count = Column(Integer, nullable=False, default=0)
+    failed_count = Column(Integer, nullable=False, default=0)
+    current_file_index = Column(Integer, nullable=False, default=0)
+    current_file = Column(Text, nullable=True)  # JSON string
+    start_time = Column(Float, nullable=True)
+    settings = Column(Text, nullable=False)  # JSON string
+    files = Column(Text, nullable=False)  # JSON string
+    processing_stats = Column(Text, nullable=True)  # JSON string
+    results = Column(Text, nullable=True)  # JSON string
+    errors = Column(Text, nullable=True)  # JSON string
+    logs = Column(Text, nullable=True)  # JSON string
+    created_at = Column(DateTime, nullable=False, default=func.now())
+    updated_at = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())
+
+    def set_current_file(self, file_info):
+        """Set current file as JSON string"""
+        import json
+        self.current_file = json.dumps(file_info) if file_info else None
+
+    def get_current_file(self):
+        """Get current file from JSON string"""
+        import json
+        if self.current_file:
+            try:
+                return json.loads(self.current_file)
+            except json.JSONDecodeError:
+                return None
+        return None
+
+    def set_settings(self, settings):
+        """Set settings as JSON string"""
+        import json
+        self.settings = json.dumps(settings)
+
+    def get_settings(self):
+        """Get settings from JSON string"""
+        import json
+        try:
+            return json.loads(self.settings)
+        except json.JSONDecodeError:
+            return {}
+
+    def set_files(self, files):
+        """Set files as JSON string"""
+        import json
+        self.files = json.dumps(files)
+
+    def get_files(self):
+        """Get files from JSON string"""
+        import json
+        try:
+            return json.loads(self.files)
+        except json.JSONDecodeError:
+            return []
+
+    def set_processing_stats(self, stats):
+        """Set processing stats as JSON string"""
+        import json
+        self.processing_stats = json.dumps(stats)
+
+    def get_processing_stats(self):
+        """Get processing stats from JSON string"""
+        import json
+        if self.processing_stats:
+            try:
+                return json.loads(self.processing_stats)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+
+    def set_results(self, results):
+        """Set results as JSON string"""
+        import json
+        self.results = json.dumps(results)
+
+    def get_results(self):
+        """Get results from JSON string"""
+        import json
+        if self.results:
+            try:
+                return json.loads(self.results)
+            except json.JSONDecodeError:
+                return []
+        return []
+
+    def set_errors(self, errors):
+        """Set errors as JSON string"""
+        import json
+        self.errors = json.dumps(errors)
+
+    def get_errors(self):
+        """Get errors from JSON string"""
+        import json
+        if self.errors:
+            try:
+                return json.loads(self.errors)
+            except json.JSONDecodeError:
+                return []
+        return []
+
+    def set_logs(self, logs):
+        """Set logs as JSON string"""
+        import json
+        self.logs = json.dumps(logs)
+
+    def get_logs(self):
+        """Get logs from JSON string"""
+        import json
+        if self.logs:
+            try:
+                return json.loads(self.logs)
+            except json.JSONDecodeError:
+                return []
+        return []
+
+    def to_dict(self):
+        """Convert to dictionary for API responses"""
+        return {
+            "batch_id": self.batch_id,
+            "status": self.status,
+            "is_paused": self.is_paused,
+            "total_files": self.total_files,
+            "processed_count": self.processed_count,
+            "failed_count": self.failed_count,
+            "current_file_index": self.current_file_index,
+            "current_file": self.get_current_file(),
+            "progress_percentage": (self.processed_count + self.failed_count) / self.total_files * 100 if self.total_files > 0 else 0,
+            "start_time": self.start_time,
+            "processing_stats": self.get_processing_stats(),
+            "results": self.get_results(),
+            "errors": self.get_errors(),
+            "logs": self.get_logs()[-50] if len(self.get_logs()) > 50 else self.get_logs(),  # Last 50 logs
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+        }

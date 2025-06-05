@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Typography,
@@ -28,6 +28,7 @@ import {
 } from '@mui/icons-material';
 import ExplorerCardGrid from './ExplorerCardGrid';
 import SharePointFileTable from './SharePointFileTable';
+import SharePointFolderStats from './SharePointFolderStats';
 import { formatDate, formatFileSize } from '../../../utils/formattingUtils';
 import { getFileIcon, isDigitizable, isPreviewable } from '../../../utils/fileUtils';
 
@@ -50,6 +51,17 @@ const SharePointExplorerContent = ({
   handleFileSelectionChange,
   fetchLibraries, // For refresh on initial error
 }) => {
+  // State for showing folder statistics
+  const [showFolderStats, setShowFolderStats] = useState(false);
+
+  // Show folder stats when items are selected
+  React.useEffect(() => {
+    if (selectedItems && selectedItems.length > 0) {
+      setShowFolderStats(true);
+    } else {
+      setShowFolderStats(false);
+    }
+  }, [selectedItems]);
 
   // Navigation handlers
   const handleBackClick = () => {
@@ -217,6 +229,17 @@ const SharePointExplorerContent = ({
               </Breadcrumbs>
             </Box>
           </Stack>
+
+          {/* Folder Statistics Component */}
+          {showFolderStats && selectedItems && selectedItems.length > 0 && (
+            <SharePointFolderStats
+              selectedItems={selectedItems}
+              selectedLibrary={selectedLibrary}
+              onClose={() => setShowFolderStats(false)}
+              title="Selection Statistics"
+            />
+          )}
+
           {/* Loading indicator for folder/file items specifically */}
           {loading && items.length === 0 && ( 
             <Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>

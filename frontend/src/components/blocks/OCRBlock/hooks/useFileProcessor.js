@@ -49,10 +49,18 @@ const useFileProcessor = () => {
         name: sharePointFile.name,
         drive_id: sharePointFile.drive_id,
         item_id: sharePointFile.id,
-        size: sharePointFile.size
+        size: sharePointFile.size,
+        fullObject: sharePointFile // Log full object for debugging
       });
 
       if (!sharePointFile.drive_id || !sharePointFile.id) {
+        console.error('SharePoint file missing identifiers:', {
+          drive_id: sharePointFile.drive_id,
+          id: sharePointFile.id,
+          hasId: !!sharePointFile.id,
+          hasDriveId: !!sharePointFile.drive_id,
+          objectKeys: Object.keys(sharePointFile)
+        });
         throw new Error('Missing SharePoint file identifiers (drive_id or item_id)');
       }
 
