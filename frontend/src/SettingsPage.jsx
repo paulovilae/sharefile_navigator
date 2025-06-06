@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, Tabs, Tab, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
+import { Box, Typography, Tabs, Tab, FormControl, InputLabel, Select, MenuItem, Accordion, AccordionSummary, AccordionDetails } from '@mui/material';
+import { ExpandMore as ExpandMoreIcon } from '@mui/icons-material';
 import SidebarMenuEditor from './admin/SidebarMenuEditor';
 import SidebarMenuCategoryEditor from './admin/SidebarMenuCategoryEditor';
 import SidebarMenuItemEditor from './admin/SidebarMenuItemEditor';
 import GenericFileEditor from './components/GenericFileEditor';
 import CacheManagement from './components/CacheManagement';
+import SharePointFilterSettings from './components/SharePointFilterSettings';
+import LocalizationSettings from './pages/LocalizationSettings';
+import { useTranslate } from 'react-admin';
 
 const themeOptions = [
   { value: 'christus', label: 'CHRISTUS Health' },
@@ -28,6 +32,7 @@ const api = async (url, method = 'GET', body) => {
 };
 
 const SettingsPage = () => {
+  const translate = useTranslate();
   const [tab, setTab] = useState(0);
   const [theme, setTheme] = useState(getStoredTheme());
   const [generalSettings, setGeneralSettings] = useState([]);
@@ -65,25 +70,25 @@ const SettingsPage = () => {
 
   const generalSettingsColumns = [
     { field: 'id', title: 'ID', dialogVisible: false },
-    { field: 'key', title: 'Key' },
-    { field: 'value', title: 'Value' },
-    { field: 'category', title: 'Category' },
-    { field: 'description', title: 'Description' },
+    { field: 'key', title: translate('table.column.key') },
+    { field: 'value', title: translate('table.column.value') },
+    { field: 'category', title: translate('table.column.category') },
+    { field: 'description', title: translate('table.column.description') },
   ];
 
   return (
     <Box sx={{ p: 3 }}>
       <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 3 }}>
-        <Tab label="General" />
-        <Tab label="Theme" />
-        <Tab label="Cache" />
-        <Tab label="Localizations" />
-        <Tab label="Menu Categories" />
-        <Tab label="Menu Items" />
+        <Tab label={translate('settings.tab.general')} />
+        <Tab label={translate('settings.tab.theme')} />
+        <Tab label={translate('settings.tab.cache')} />
+        <Tab label={translate('settings.tab.localizations')} />
+        <Tab label={translate('settings.tab.menu_categories')} />
+        <Tab label={translate('settings.tab.menu_items')} />
       </Tabs>
       {tab === 0 && (
         <Box>
-          <Typography variant="h6" sx={{ mb: 2 }}>General Settings</Typography>
+          <Typography variant="h6" sx={{ mb: 2 }}>{translate('settings.general_settings')}</Typography>
           <GenericFileEditor
             data={generalSettings}
             columns={generalSettingsColumns}
@@ -95,13 +100,13 @@ const SettingsPage = () => {
       )}
       {tab === 1 && (
         <Box>
-          <Typography variant="h6" sx={{ mb: 2 }}>Theme</Typography>
+          <Typography variant="h6" sx={{ mb: 2 }}>{translate('settings.tab.theme')}</Typography>
           <FormControl sx={{ minWidth: 240 }}>
-            <InputLabel id="theme-select-label">Theme</InputLabel>
+            <InputLabel id="theme-select-label">{translate('form.label.theme')}</InputLabel>
             <Select
               labelId="theme-select-label"
               value={theme}
-              label="Theme"
+              label={translate('form.label.theme')}
               onChange={e => setTheme(e.target.value)}
             >
               {themeOptions.map(opt => (
@@ -110,7 +115,7 @@ const SettingsPage = () => {
             </Select>
           </FormControl>
           <Typography sx={{ mt: 2 }} color="text.secondary">
-            The selected theme will be applied across the application. (You may need to reload the page.)
+            {translate('settings.theme_description')}
           </Typography>
         </Box>
       )}
@@ -118,20 +123,17 @@ const SettingsPage = () => {
         <CacheManagement />
       )}
       {tab === 3 && (
-        <Box>
-          <Typography variant="h6" sx={{ mb: 2 }}>Localizations</Typography>
-          <Typography color="text.secondary">(Localization settings go here.)</Typography>
-        </Box>
+        <LocalizationSettings />
       )}
       {tab === 4 && (
         <Box>
-          <Typography variant="h6" sx={{ mb: 2 }}>Menu Categories</Typography>
+          <Typography variant="h6" sx={{ mb: 2 }}>{translate('settings.tab.menu_categories')}</Typography>
           <SidebarMenuCategoryEditor />
         </Box>
       )}
       {tab === 5 && (
         <Box>
-          <Typography variant="h6" sx={{ mb: 2 }}>Menu Items</Typography>
+          <Typography variant="h6" sx={{ mb: 2 }}>{translate('settings.tab.menu_items')}</Typography>
           <SidebarMenuItemEditor />
         </Box>
       )}

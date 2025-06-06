@@ -3,6 +3,7 @@ import { Box, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, 
 import { Add as AddIcon, Delete as DeleteIcon, Edit as EditIcon, CloudDownload as CloudDownloadIcon, CloudUpload as CloudUploadIcon, Search as SearchIcon, ViewColumn as ViewColumnIcon, Menu as MenuIcon } from '@mui/icons-material';
 import { saveAs } from 'file-saver';
 import { styled } from '@mui/material/styles';
+import { useTranslate } from 'react-admin';
 //import { Draggable, DragDropContext, Droppable } from '@atlaskit/pragmatic-drag-and-drop';
 
 const StyledTableRow = styled(TableRow)(({ theme }) => ({
@@ -28,6 +29,7 @@ const StyledTableHeadRow = styled(TableRow)(({ theme }) => ({
 }));
 
 export default function GenericFileEditor({ data, columns, onAddRow, onRemoveRow, onUpdateRow, onReorder, externallySelectedIds, onExternalSelectionChange }) {
+  const translate = useTranslate();
   const [sortBy, setSortBy] = useState('');
   const [sortOrder, setSortOrder] = useState('asc');
   const [selectedColumns, setSelectedColumns] = useState(columns.filter(column => !column.hidden).map(column => column.field));
@@ -106,7 +108,7 @@ export default function GenericFileEditor({ data, columns, onAddRow, onRemoveRow
   const handleSelectRow = (event, id, row) => {
     // Prevent selection of non-digitizable files in external selection mode
     if (externallySelectedIds !== undefined && !isDigitizable(row)) {
-      event.preventDefault();
+      event.preventDefaultranslate();
       return;
     }
 
@@ -114,13 +116,13 @@ export default function GenericFileEditor({ data, columns, onAddRow, onRemoveRow
     let newSelected = [];
 
     if (selectedIndex === -1) {
-      newSelected = newSelected.concat(currentSelectedIds, id);
+      newSelected = newSelected.concatranslate(currentSelectedIds, id);
     } else if (selectedIndex === 0) {
-      newSelected = newSelected.concat(currentSelectedIds.slice(1));
+      newSelected = newSelected.concatranslate(currentSelectedIds.slice(1));
     } else if (selectedIndex === currentSelectedIds.length - 1) {
-      newSelected = newSelected.concat(currentSelectedIds.slice(0, -1));
+      newSelected = newSelected.concatranslate(currentSelectedIds.slice(0, -1));
     } else if (selectedIndex > 0) {
-      newSelected = newSelected.concat(
+      newSelected = newSelected.concatranslate(
         currentSelectedIds.slice(0, selectedIndex),
         currentSelectedIds.slice(selectedIndex + 1),
       );
@@ -197,7 +199,7 @@ export default function GenericFileEditor({ data, columns, onAddRow, onRemoveRow
         console.error('Error parsing JSON:', error);
       }
     };
-    reader.readAsText(file);
+    reader.readAsTextranslate(file);
   };
 
   const handleSearchChange = (event) => {
@@ -254,7 +256,7 @@ export default function GenericFileEditor({ data, columns, onAddRow, onRemoveRow
       <Paper sx={{ width: '100%', mb: 1 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', p: 0.5 }}>
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <Tooltip title="Select Columns">
+            <Tooltip title={translate('table.select_columns')}>
               <IconButton onClick={handleColumnClick} size="small">
                 <ViewColumnIcon fontSize="small" />
               </IconButton>
@@ -292,7 +294,7 @@ export default function GenericFileEditor({ data, columns, onAddRow, onRemoveRow
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <TextField
-              label="Search"
+              label={translate('common.search')}
               variant="outlined"
               size="small"
               value={searchTerm}
@@ -303,24 +305,24 @@ export default function GenericFileEditor({ data, columns, onAddRow, onRemoveRow
               }}
             />
             <Box sx={{ display: 'flex' }}>
-              <Tooltip title="Add">
+              <Tooltip title={translate('common.add')}>
                 <IconButton onClick={handleAddRow} size="small">
                   <AddIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
-              <Tooltip title="Delete">
+              <Tooltip title={translate('common.delete')}>
                 <span>
                   <IconButton onClick={handleRemoveRow} disabled={currentSelectedIds.length === 0} size="small">
                     <DeleteIcon fontSize="small" />
                   </IconButton>
                 </span>
               </Tooltip>
-              <Tooltip title="Download JSON">
+              <Tooltip title={translate('table.download_json')}>
                 <IconButton onClick={handleDownloadJson} size="small">
                   <CloudDownloadIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
-              <Tooltip title="Upload JSON">
+              <Tooltip title={translate('table.upload_json')}>
                 <IconButton component="label" size="small">
                   <CloudUploadIcon fontSize="small" />
                   <input type="file" accept=".json" onChange={handleUploadJson} hidden />
@@ -375,7 +377,7 @@ export default function GenericFileEditor({ data, columns, onAddRow, onRemoveRow
                             </TableSortLabel>
                           </TableCell>
                         ))}
-                      <TableCell>Actions</TableCell>
+                      <TableCell>{translate('table.actions')}</TableCell>
                     </StyledTableHeadRow>
                   </TableHead>
                   <TableBody>
@@ -396,7 +398,7 @@ export default function GenericFileEditor({ data, columns, onAddRow, onRemoveRow
                           key={row.id}
                           selected={isItemSelected}
                           draggable={!isRowDisabled}
-                          onDragStart={() => !isRowDisabled && handleDragStart(row)}
+                          onDragStart={() => !isRowDisabled && handleDragStartranslate(row)}
                           onDragEnter={() => !isRowDisabled && handleDragEnter(row)}
                           onDragEnd={handleDragEnd}
                           sx={{
@@ -446,7 +448,7 @@ export default function GenericFileEditor({ data, columns, onAddRow, onRemoveRow
                               </TableCell>
                             ))}
                           <TableCell sx={{ width: 60 }}>
-                            <Tooltip title="Edit">
+                            <Tooltip title={translate('common.edit')}>
                               <IconButton
                                 onClick={() => handleUpdateRow(row)}
                                 size="small"
@@ -465,7 +467,7 @@ export default function GenericFileEditor({ data, columns, onAddRow, onRemoveRow
           </TableContainer>
         </Paper>
         <Dialog open={openAddDialog} onClose={handleCloseAddDialog}>
-          <DialogTitle>Add New Row</DialogTitle>
+          <DialogTitle>{translate('dialog.add_new_row')}</DialogTitle>
           <DialogContent>
             {columns.filter(column => column.dialogVisible !== false).map(column => (
               column.dialogRender ? (
@@ -493,12 +495,12 @@ export default function GenericFileEditor({ data, columns, onAddRow, onRemoveRow
             ))}
           </DialogContent>
           <DialogActions>
-            <Button onClick={handleCloseAddDialog}>Cancel</Button>
-            <Button onClick={handleSaveAddDialog}>Add</Button>
+            <Button onClick={handleCloseAddDialog}>{translate('common.cancel')}</Button>
+            <Button onClick={handleSaveAddDialog}>{translate('common.add')}</Button>
           </DialogActions>
         </Dialog>
         <Dialog open={openEditDialog} onClose={handleCloseEditDialog}>
-          <DialogTitle>Edit Row</DialogTitle>
+          <DialogTitle>{translate('dialog.edit_row')}</DialogTitle>
           <DialogContent>
             {editRow && columns.filter(column => column.dialogVisible !== false).map(column => (
               column.dialogRender ? (
@@ -526,8 +528,8 @@ export default function GenericFileEditor({ data, columns, onAddRow, onRemoveRow
             ))}
           </DialogContent>
           <DialogActions>
-            <Button onClick={handleCloseEditDialog}>Cancel</Button>
-            <Button onClick={handleSaveEditDialog}>Save</Button>
+            <Button onClick={handleCloseEditDialog}>{translate('common.cancel')}</Button>
+            <Button onClick={handleSaveEditDialog}>{translate('common.save')}</Button>
           </DialogActions>
         </Dialog>
       </Box>

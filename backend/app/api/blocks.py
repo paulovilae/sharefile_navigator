@@ -205,7 +205,7 @@ def delete_sidebar_menu_category(cat_id: int, db: Session = Depends(get_db)):
 # # Sidebar Menu Endpoints
 @router.get('/sidebar_menus', response_model=List[SidebarMenuRead], tags=["SidebarMenu"], summary="List all sidebar menus")
 def list_sidebar_menus(db: Session = Depends(get_db)):
-    return db.query(SidebarMenu).order_by(SidebarMenu.order).all()
+    return db.query(SidebarMenu).filter(SidebarMenu.enabled == True).order_by(SidebarMenu.order).all()
 
 @router.post('/sidebar_menus', response_model=SidebarMenuRead, tags=["SidebarMenu"], summary="Create sidebar menu")
 def create_sidebar_menu(menu: SidebarMenuCreate, db: Session = Depends(get_db)):

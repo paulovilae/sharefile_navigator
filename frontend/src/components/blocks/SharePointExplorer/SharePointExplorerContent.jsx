@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Box,
   Typography,
@@ -28,9 +28,10 @@ import {
 } from '@mui/icons-material';
 import ExplorerCardGrid from './ExplorerCardGrid';
 import SharePointFileTable from './SharePointFileTable';
-import SharePointFolderStats from './SharePointFolderStats';
+import SharePointSelectionMetrics from './SharePointSelectionMetrics';
 import { formatDate, formatFileSize } from '../../../utils/formattingUtils';
 import { getFileIcon, isDigitizable, isPreviewable } from '../../../utils/fileUtils';
+import { useTranslate } from 'react-admin';
 
 const SharePointExplorerContent = ({
   selectedLibrary,
@@ -51,17 +52,7 @@ const SharePointExplorerContent = ({
   handleFileSelectionChange,
   fetchLibraries, // For refresh on initial error
 }) => {
-  // State for showing folder statistics
-  const [showFolderStats, setShowFolderStats] = useState(false);
-
-  // Show folder stats when items are selected
-  React.useEffect(() => {
-    if (selectedItems && selectedItems.length > 0) {
-      setShowFolderStats(true);
-    } else {
-      setShowFolderStats(false);
-    }
-  }, [selectedItems]);
+  const translate = useTranslate();
 
   // Navigation handlers
   const handleBackClick = () => {
@@ -96,7 +87,7 @@ const SharePointExplorerContent = ({
       <Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>
         <CircularProgress />
         <Typography variant="body2" sx={{ ml: 2 }}>
-          Loading SharePoint libraries...
+          {translate('message.loading_libraries')}
         </Typography>
       </Box>
     );
@@ -106,9 +97,9 @@ const SharePointExplorerContent = ({
   if (error && !selectedLibrary && libraries.length === 0) {
     return (
       <Alert severity="error" action={
-        <IconButton size="small" onClick={fetchLibraries}>
-          <RefreshIcon />
-        </IconButton>
+        <Button size="small" onClick={fetchLibraries} variant="outlined">
+          Retry
+        </Button>
       }>
         {error}
       </Alert>
@@ -121,7 +112,7 @@ const SharePointExplorerContent = ({
         // Library Selection
         <Box>
           <Typography variant="h6" gutterBottom sx={{ fontWeight: 500, color: 'primary.main' }}>
-            SharePoint Libraries
+            {translate('sharepoint.libraries')}
           </Typography>
           <Grid container spacing={2}>
           {libraries.map((library) => (
@@ -138,7 +129,7 @@ const SharePointExplorerContent = ({
                     </Typography>
                   </Box>
                   <Typography variant="body2" color="text.secondary">
-                    {library.description || 'SharePoint Document Library'}
+                    {library.description || translate('sharepoint.document_library')}
                   </Typography>
                 </CardContent>
               </Card>
@@ -157,7 +148,7 @@ const SharePointExplorerContent = ({
               onClick={handleBackClick}
               size="small"
             >
-              Back
+              {translate('button.back')}
             </Button>
             
             {/* Breadcrumb Navigation */}
@@ -230,22 +221,12 @@ const SharePointExplorerContent = ({
             </Box>
           </Stack>
 
-          {/* Folder Statistics Component */}
-          {showFolderStats && selectedItems && selectedItems.length > 0 && (
-            <SharePointFolderStats
-              selectedItems={selectedItems}
-              selectedLibrary={selectedLibrary}
-              onClose={() => setShowFolderStats(false)}
-              title="Selection Statistics"
-            />
-          )}
-
           {/* Loading indicator for folder/file items specifically */}
           {loading && items.length === 0 && ( 
             <Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>
               <CircularProgress />
               <Typography variant="body2" sx={{ ml: 2 }}>
-                Loading items...
+                {translate('message.loading_items')}
               </Typography>
             </Box>
           )}
@@ -267,7 +248,7 @@ const SharePointExplorerContent = ({
           {/* Folders */}
           {!loading && !error && items.filter(item => item.type === 'folder').length > 0 && (
             <Box mb={2}>
-              <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold' }}>Folders</Typography>
+              <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold' }}>{translate('label.folders')}</Typography>
               <ExplorerCardGrid
                 data={items.filter(item => item.type === 'folder')}
                 onCardClick={handleFolderClick}
@@ -283,7 +264,7 @@ const SharePointExplorerContent = ({
           {/* Files */}
           {!loading && !error && items.filter(item => item.type === 'file').length > 0 && (
             <Box>
-              <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold' }}>Files</Typography>
+              <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold' }}>{translate('label.files')}</Typography>
               <SharePointFileTable
                 files={items.filter(item => item.type === 'file')}
                 selectedLibrary={selectedLibrary}
@@ -302,6 +283,15 @@ const SharePointExplorerContent = ({
               />
             </Box>
           )}
+
+          {/* Selection Statistics - Below Files */}
+          {selectedItems && selectedItems.length > 0 && (
+            <SharePointSelectionMetrics
+              selectedItems={selectedItems}
+              items={items}
+              title="Selection Statistics"
+            />
+          )}
         </Box>
           )}
 
@@ -309,7 +299,7 @@ const SharePointExplorerContent = ({
           {!loading && !error && items.length === 0 && (
             <Box textAlign="center" py={4}>
               <Typography variant="body1" color="text.secondary">
-                No items found in this location.
+                {translate('message.no_items_found')}
               </Typography>
             </Box>
           )}

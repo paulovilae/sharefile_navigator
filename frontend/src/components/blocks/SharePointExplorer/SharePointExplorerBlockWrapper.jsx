@@ -29,7 +29,14 @@ const SharePointExplorerBlockWrapper = ({ config, onSelectionChange, onExecution
     <SharePointExplorerContentWrapper
       config={config}
       onSelectionChange={onSelectionChange}
-      onExecutionUpdate={onExecutionUpdate}
+      onExecutionUpdate={(update) => {
+        if (onExecutionUpdate) {
+          onExecutionUpdate({
+            ...update,
+            onReload: update.onReload // Pass through the reload function
+          });
+        }
+      }}
       multiSelect={multiSelect}
       metrics={metrics}
       setMetrics={setMetrics}

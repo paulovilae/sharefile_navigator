@@ -256,6 +256,7 @@ class SidebarMenuBase(BaseModel):
     category_id: Optional[int] = None
     order: int = 0
     enabled: bool = True
+    translation_key: Optional[str] = None
 
 class SidebarMenuCreate(SidebarMenuBase):
     pass
@@ -265,8 +266,11 @@ class SidebarMenuRead(SidebarMenuBase):
     created_at: Optional[datetime.datetime]
     updated_at: Optional[datetime.datetime]
     category: Optional[SidebarMenuCategoryRead]
+    
     class Config:
-        from_attributes = True 
+        from_attributes = True
+        # Ensure all fields are included, even if None
+        exclude_none = False
 # OcrImagesRequest
 class OcrImagesRequest(BaseModel):
     image_paths: List[str]

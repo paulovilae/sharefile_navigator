@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Frontend Polling</title>
+</head>
+<body>
+    <h1>Batch Status Test</h1>
+    <div id="status"></div>
+    <button onclick="fetchStatus()">Fetch Status</button>
+    
+    <script>
+        const batchId = 'paginated_paginated_batch_1749105108775_chunk_0_yyb5l2geq';
+        
+        async function fetchStatus() {
+            try {
+                const response = await fetch(`http://localhost:8000/api/ocr/batch/status/${batchId}`);
+                const data = await response.json();
+                
+                document.getElementById('status').innerHTML = `
+                    <h2>Batch Status</h2>
+                    <p><strong>Status:</strong> ${data.status}</p>
+                    <p><strong>Processed:</strong> ${data.processed_count} / ${data.total_files}</p>
+                    <p><strong>Current File:</strong> ${data.current_file?.name || 'None'}</p>
+                    <p><strong>Start Time:</strong> ${data.start_time}</p>
+                    <p><strong>Estimated Time Remaining:</strong> ${data.estimated_time_remaining}</p>
+                    <p><strong>Average Processing Time:</strong> ${data.processing_stats?.average_processing_time}</p>
+                    <p><strong>Processing Stats:</strong> ${JSON.stringify(data.processing_stats, null, 2)}</p>
+                `;
+            } catch (error) {
+                document.getElementById('status').innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        }
+        
+        // Auto-fetch every 5 seconds
+        setInterval(fetchStatus, 5000);
+        fetchStatus(); // Initial fetch
+    </script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Box, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, List, ListItem, ListItemText, IconButton, Select, MenuItem, FormControl, InputLabel, Switch, FormControlLabel, Typography, Divider
+  Box, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, List, ListItem, ListItemText, IconButton, Select, MenuItem, FormControl, InputLabel, Switch, FormControlLabel, Typography, Divider, Snackbar, Alert
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
@@ -15,6 +15,11 @@ const api = async (url, method = 'GET', body) => {
     headers: { 'Content-Type': 'application/json' },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
+  
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+  }
+  
   return res.json();
 };
 
@@ -26,6 +31,7 @@ export default function SidebarMenuEditor() {
   const [form, setForm] = useState({ label: '', icon: '', page_ref: '', category_id: '', order: 0, enabled: true });
   const [catOpen, setCatOpen] = useState(false);
   const [catForm, setCatForm] = useState({ name: '', description: '' });
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
   // Load menus and categories
   const load = async () => {
@@ -40,20 +46,59 @@ export default function SidebarMenuEditor() {
 
   // CRUD handlers
   const handleSave = async () => {
-    if (selected) await api(`/api/blocks/sidebar_menus/${selected.id}`, 'PUT', form);
-    else await api('/api/blocks/sidebar_menus', 'POST', form);
-    setOpen(false); setForm({ label: '', icon: '', page_ref: '', category_id: '', order: 0, enabled: true }); setSelected(null); load();
+    try {
+      if (selected) await api(`/api/blocks/sidebar_menus/${selected.id}`, 'PUT', form);
+      else await api('/api/blocks/sidebar_menus', 'POST', form);
+      setOpen(false);
+      setForm({ label: '', icon: '', page_ref: '', category_id: '', order: 0, enabled: true });
+      setSelected(null);
+      load();
+      setSnackbar({ open: true, message: 'Menu item saved successfully!', severity: 'success' });
+    } catch (error) {
+      console.error('Error saving menu item:', error);
+      setSnackbar({ open: true, message: 'Failed to save menu item.', severity: 'error' });
+    }
   };
-  const handleDelete = async id => { await api(`/api/blocks/sidebar_menus/${id}`, 'DELETE'); load(); };
+  
+  const handleDelete = async id => {
+    try {
+      await api(`/api/blocks/sidebar_menus/${id}`, 'DELETE');
+      load();
+      setSnackbar({ open: true, message: 'Menu item deleted successfully!', severity: 'success' });
+    } catch (error) {
+      console.error('Error deleting menu item:', error);
+      setSnackbar({ open: true, message: 'Failed to delete menu item.', severity: 'error' });
+    }
+  };
+  
   const handleEdit = menu => { setSelected(menu); setForm(menu); setOpen(true); };
 
   // Category handlers
   const handleCatSave = async () => {
-    if (catForm.id) await api(`/api/blocks/sidebar_menu_categories/${catForm.id}`, 'PUT', catForm);
-    else await api('/api/blocks/sidebar_menu_categories', 'POST', catForm);
-    setCatOpen(false); setCatForm({ name: '', description: '' }); load();
+    try {
+      if (catForm.id) await api(`/api/blocks/sidebar_menu_categories/${catForm.id}`, 'PUT', catForm);
+      else await api('/api/blocks/sidebar_menu_categories', 'POST', catForm);
+      setCatOpen(false);
+      setCatForm({ name: '', description: '' });
+      load();
+      setSnackbar({ open: true, message: 'Category saved successfully!', severity: 'success' });
+    } catch (error) {
+      console.error('Error saving category:', error);
+      setSnackbar({ open: true, message: 'Failed to save category.', severity: 'error' });
+    }
   };
-  const handleCatDelete = async id => { await api(`/api/blocks/sidebar_menu_categories/${id}`, 'DELETE'); load(); };
+  
+  const handleCatDelete = async id => {
+    try {
+      await api(`/api/blocks/sidebar_menu_categories/${id}`, 'DELETE');
+      load();
+      setSnackbar({ open: true, message: 'Category deleted successfully!', severity: 'success' });
+    } catch (error) {
+      console.error('Error deleting category:', error);
+      setSnackbar({ open: true, message: 'Failed to delete category.', severity: 'error' });
+    }
+  };
+  
   const handleCatEdit = cat => { setCatForm(cat); setCatOpen(true); };
 
   // Import/export
@@ -160,6 +205,13 @@ export default function SidebarMenuEditor() {
           <Button onClick={handleCatSave} variant="contained">Save</Button>
         </DialogActions>
       </Dialog>
+      
+      {/* Snackbar for notifications */}
+      <Snackbar open={snackbar.open} autoHideDuration={6000} onClose={() => setSnackbar({ ...snackbar, open: false })}>
+        <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity} sx={{ width: '100%' }}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
-} 
+}

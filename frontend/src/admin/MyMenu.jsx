@@ -15,6 +15,7 @@ import ListIcon from '@mui/icons-material/List';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
+import { useTranslate } from 'react-admin';
 
 const iconComponentMap = {
     Folder: FolderIcon,
@@ -44,6 +45,7 @@ const api = async (url, method = 'GET', body) => {
 
 const MyMenu = (props) => {
     const theme = useTheme();
+    const translate = useTranslate();
     const getIconColor = () => theme.palette.mode === 'dark' ? theme.palette.primary.light : theme.palette.primary.main;
     const [menuItems, setMenuItems] = useState([]);
     const [menuCategories, setMenuCategories] = useState([]);
@@ -74,10 +76,12 @@ const MyMenu = (props) => {
         const items = [];
         menuItems.forEach(item => {
             const IconComponent = iconComponentMap[item.icon] || null;
+            // Use translation key if available, fallback to label for backward compatibility
+            const displayLabel = item.translation_key ? translate(item.translation_key) : item.label;
             items.push({
                 type: 'link',
-                label: item.label,
-                to: item.page_ref,
+                label: displayLabel,
+                to: item.page_ref === '/settings/localizations' ? '/settings/localizations' : item.page_ref,
                 icon: IconComponent ? <IconComponent style={{ width: 20, height: 20, color: getIconColor() }} /> : null,
             });
         });

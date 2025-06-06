@@ -156,6 +156,56 @@ setInterval(() => {
     sharePointCache.cleanup();
 }, 10 * 60 * 1000);
 
+/**
+ * Global cache clearing function
+ * Clears all frontend caches including localStorage and SharePoint cache
+ */
+export const clearAllCaches = async () => {
+    console.log('[Global Cache Clear] Starting comprehensive cache clear...');
+    
+    // Clear SharePoint cache
+    sharePointCache.clear();
+    
+    // Clear localStorage (except essential items like theme preferences)
+    const keysToKeep = ['theme', 'language', 'user-preferences'];
+    const allKeys = Object.keys(localStorage);
+    
+    allKeys.forEach(key => {
+        const shouldKeep = keysToKeep.some(keepKey => key.toLowerCase().includes(keepKey));
+        if (!shouldKeep) {
+            localStorage.removeItem(key);
+        }
+    });
+    
+    // Clear backend cache via API
+    try {
+        const response = await fetch('/api/cache/clear', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cache_type: 'all' })
+        });
+        
+        if (response.ok) {
+            console.log('[Global Cache Clear] Backend cache cleared successfully');
+        } else {
+            console.warn('[Global Cache Clear] Failed to clear backend cache');
+        }
+    } catch (error) {
+        console.error('[Global Cache Clear] Error clearing backend cache:', error);
+    }
+    
+    console.log('[Global Cache Clear] All caches cleared');
+};
+
+// Listen for global cache clear events
+if (typeof window !== 'undefined') {
+    window.addEventListener('clearAllCaches', clearAllCaches);
+    window.addEventListener('globalRefresh', () => {
+        console.log('[Global Refresh] Clearing caches as part of global refresh');
+        clearAllCaches();
+    });
+}
+
 export default sharePointCache;
 
 /**

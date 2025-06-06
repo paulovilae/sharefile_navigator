@@ -136,11 +136,13 @@ def list_files(
 def list_files_recursive(
     libraryId: str = Query(..., description="SharePoint library/drive ID"),
     folderId: str = Query(..., description="Folder ID to search recursively"),
-    fileType: str = Query(default="", description="File type filter (e.g., 'pdf')")
+    fileType: str = Query(default="", description="File type filter (e.g., 'pdf')"),
+    limit: int = Query(default=0, description="Maximum number of files to return (0 = no limit)"),
+    offset: int = Query(default=0, description="Number of files to skip for pagination")
 ):
     """
     Recursively list all files in a folder and its subfolders.
-    Optionally filter by file type.
+    Optionally filter by file type and supports pagination.
     """
     try:
         token = get_graph_token()
@@ -191,9 +193,20 @@ def list_files_recursive(
         # Get all files recursively starting from the specified folder
         all_files = get_files_recursively(folderId)
         
+        # Apply pagination if requested
+        total_count = len(all_files)
+        if limit > 0:
+            paginated_files = all_files[offset:offset + limit]
+        else:
+            paginated_files = all_files[offset:] if offset > 0 else all_files
+        
         return JSONResponse({
-            "files": all_files,
-            "total_count": len(all_files),
+            "files": paginated_files,
+            "total_count": total_count,
+            "returned_count": len(paginated_files),
+            "offset": offset,
+            "limit": limit,
+            "has_more": (offset + len(paginated_files)) < total_count,
             "folder_id": folderId,
             "library_id": libraryId,
             "file_type_filter": fileType

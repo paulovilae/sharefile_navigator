@@ -10,6 +10,7 @@ from app.api import activity
 from app.api.sharepoint import content_router
 from app.api import settings
 from app.routers.blocks import router as blocks_router
+from app.api.blocks import router as api_blocks_router
 from app.api import cache
 from app.api import preload
 from app.api import search
@@ -38,7 +39,10 @@ app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(activity.router, prefix="/api/notifications/activity", tags=["activity"])
 app.include_router(content_router, prefix="/api/content/files", tags=["content"])
 app.include_router(settings.router, prefix="/api/settings", tags=["settings"])
+from app.routers import localizations
+app.include_router(localizations.router, prefix="/api/localizations", tags=["localizations"])
 app.include_router(blocks_router, prefix="/api/blocks")
+app.include_router(api_blocks_router, prefix="/api/blocks")
 app.include_router(cache.router, prefix="/api/cache", tags=["cache"])
 app.include_router(preload.router, prefix="/api/preload", tags=["preload"])
 app.include_router(search.router, prefix="/api/search", tags=["search"])

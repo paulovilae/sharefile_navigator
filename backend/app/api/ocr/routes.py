@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 from .models import SharePointItem, PdfOcrRequest, BatchProcessingRequest
 from .db_utils import get_db_session
+from app.models import OcrResult
 from .preload_utils import check_preloaded_data
 from .pdf_processing import pdf_ocr_with_preload, pdf_ocr_process
 from .sharepoint_processing import process_sharepoint_item
@@ -208,6 +209,31 @@ def list_batch_jobs_endpoint():
     List all current batch processing jobs with their status.
     """
     return list_batch_jobs()
+
+@router.get('/processed-files', summary="Get list of processed files")
+def get_processed_files_endpoint(db: Session = Depends(get_db_session)):
+    """
+    Get a list of all files that have been successfully processed.
+    Returns item_id and file names to help with deduplication.
+    """
+    try:
+        # Query OCR results for successfully processed files
+        # Note: file_id in OcrResult contains the SharePoint item_id
+        processed_files = db.query(OcrResult).filter(
+            OcrResult.status == 'completed'
+        ).with_entities(
+            OcrResult.file_id
+        ).distinct().all()
+        
+        return [
+            {
+                "item_id": file.file_id  # Return as item_id for frontend compatibility
+            }
+            for file in processed_files
+        ]
+    except Exception as e:
+        logger.error(f"Error getting processed files: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error getting processed files: {str(e)}")
 
 @router.get('/health', summary="Get OCR process health status")
 def get_process_health_endpoint():

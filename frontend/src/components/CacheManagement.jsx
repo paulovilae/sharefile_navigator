@@ -36,8 +36,10 @@ import {
     CheckCircle as CheckCircleIcon
 } from '@mui/icons-material';
 import sharePointCache from '../utils/cacheUtils';
+import { useTranslate } from 'react-admin';
 
 const CacheManagement = () => {
+    const translate = useTranslate();
     const [backendStats, setBackendStats] = useState(null);
     const [frontendStats, setFrontendStats] = useState(null);
     const [localStorageStats, setLocalStorageStats] = useState(null);
@@ -220,15 +222,11 @@ const CacheManagement = () => {
         <Box sx={{ p: 3 }}>
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
                 <Typography variant="h4" component="h1">
-                    Cache Management
+                    {translate('cache.management')}
                 </Typography>
-                <Button
-                    variant="outlined"
-                    startIcon={<RefreshIcon />}
-                    onClick={loadAllStats}
-                >
-                    Refresh All
-                </Button>
+                <Typography variant="body2" color="text.secondary">
+                    Use the global refresh button in the header to refresh all data and clear caches
+                </Typography>
             </Box>
 
             {error && (
@@ -244,26 +242,26 @@ const CacheManagement = () => {
                         <CardContent>
                             <Box display="flex" alignItems="center" mb={2}>
                                 <CloudIcon color="primary" sx={{ mr: 1 }} />
-                                <Typography variant="h6">Backend Cache</Typography>
+                                <Typography variant="h6">{translate('cache.backend_cache')}</Typography>
                             </Box>
                             
                             {backendStats && (
                                 <>
                                     <Grid container spacing={2}>
                                         <Grid item xs={6}>
-                                            <Typography variant="body2" color="textSecondary">OCR Results</Typography>
+                                            <Typography variant="body2" color="textSecondary">{translate('cache.ocr_results')}</Typography>
                                             <Typography variant="h6">{backendStats.ocr_results?.size || 0}</Typography>
                                         </Grid>
                                         <Grid item xs={6}>
-                                            <Typography variant="body2" color="textSecondary">SharePoint</Typography>
+                                            <Typography variant="body2" color="textSecondary">{translate('cache.sharepoint')}</Typography>
                                             <Typography variant="h6">{backendStats.sharepoint_files?.size || 0}</Typography>
                                         </Grid>
                                         <Grid item xs={6}>
-                                            <Typography variant="body2" color="textSecondary">LLM Scores</Typography>
+                                            <Typography variant="body2" color="textSecondary">{translate('cache.llm_scores')}</Typography>
                                             <Typography variant="h6">{backendStats.llm_scores?.size || 0}</Typography>
                                         </Grid>
                                         <Grid item xs={6}>
-                                            <Typography variant="body2" color="textSecondary">File Cache</Typography>
+                                            <Typography variant="body2" color="textSecondary">{translate('cache.file_cache')}</Typography>
                                             <Typography variant="h6">{backendStats.file_cache?.file_count || 0}</Typography>
                                         </Grid>
                                     </Grid>
@@ -271,7 +269,7 @@ const CacheManagement = () => {
                                     {backendStats.file_cache && (
                                         <Box mt={2}>
                                             <Typography variant="body2" color="textSecondary">
-                                                Total Size: {formatBytes(backendStats.file_cache.total_size_bytes)}
+                                                {translate('cache.total_size')}: {formatBytes(backendStats.file_cache.total_size_bytes)}
                                             </Typography>
                                         </Box>
                                     )}
@@ -287,11 +285,11 @@ const CacheManagement = () => {
                                     onClick={() => setClearDialog({
                                         open: true,
                                         type: 'backend',
-                                        title: 'Clear Backend Cache'
+                                        title: translate('cache.clear_backend')
                                     })}
                                     fullWidth
                                 >
-                                    Clear Backend Cache
+                                    {translate('cache.clear_backend')}
                                 </Button>
                             </Box>
                         </CardContent>
@@ -304,26 +302,26 @@ const CacheManagement = () => {
                         <CardContent>
                             <Box display="flex" alignItems="center" mb={2}>
                                 <MemoryIcon color="secondary" sx={{ mr: 1 }} />
-                                <Typography variant="h6">Frontend Cache</Typography>
+                                <Typography variant="h6">{translate('cache.frontend_cache')}</Typography>
                             </Box>
                             
                             {frontendStats && (
                                 <>
                                     <Grid container spacing={2}>
                                         <Grid item xs={6}>
-                                            <Typography variant="body2" color="textSecondary">Total Entries</Typography>
+                                            <Typography variant="body2" color="textSecondary">{translate('cache.total_entries')}</Typography>
                                             <Typography variant="h6">{frontendStats.totalEntries}</Typography>
                                         </Grid>
                                         <Grid item xs={6}>
-                                            <Typography variant="body2" color="textSecondary">Valid</Typography>
+                                            <Typography variant="body2" color="textSecondary">{translate('cache.valid')}</Typography>
                                             <Typography variant="h6" color="success.main">{frontendStats.validEntries}</Typography>
                                         </Grid>
                                         <Grid item xs={6}>
-                                            <Typography variant="body2" color="textSecondary">Expired</Typography>
+                                            <Typography variant="body2" color="textSecondary">{translate('cache.expired')}</Typography>
                                             <Typography variant="h6" color="warning.main">{frontendStats.expiredEntries}</Typography>
                                         </Grid>
                                         <Grid item xs={6}>
-                                            <Typography variant="body2" color="textSecondary">Hit Rate</Typography>
+                                            <Typography variant="body2" color="textSecondary">{translate('cache.hit_rate')}</Typography>
                                             <Typography variant="h6">{(frontendStats.hitRate * 100).toFixed(1)}%</Typography>
                                         </Grid>
                                     </Grid>
@@ -339,11 +337,11 @@ const CacheManagement = () => {
                                     onClick={() => setClearDialog({
                                         open: true,
                                         type: 'frontend',
-                                        title: 'Clear Frontend Cache'
+                                        title: translate('cache.clear_frontend')
                                     })}
                                     fullWidth
                                 >
-                                    Clear Frontend Cache
+                                    {translate('cache.clear_frontend')}
                                 </Button>
                             </Box>
                         </CardContent>
@@ -356,18 +354,18 @@ const CacheManagement = () => {
                         <CardContent>
                             <Box display="flex" alignItems="center" mb={2}>
                                 <StorageIcon color="info" sx={{ mr: 1 }} />
-                                <Typography variant="h6">Local Storage</Typography>
+                                <Typography variant="h6">{translate('cache.local_storage')}</Typography>
                             </Box>
                             
                             {localStorageStats && (
                                 <>
                                     <Grid container spacing={2}>
                                         <Grid item xs={6}>
-                                            <Typography variant="body2" color="textSecondary">Total Keys</Typography>
+                                            <Typography variant="body2" color="textSecondary">{translate('cache.total_keys')}</Typography>
                                             <Typography variant="h6">{localStorageStats.totalKeys}</Typography>
                                         </Grid>
                                         <Grid item xs={6}>
-                                            <Typography variant="body2" color="textSecondary">Total Size</Typography>
+                                            <Typography variant="body2" color="textSecondary">{translate('cache.total_size')}</Typography>
                                             <Typography variant="h6">{formatBytes(localStorageStats.totalSize)}</Typography>
                                         </Grid>
                                     </Grid>
@@ -383,11 +381,11 @@ const CacheManagement = () => {
                                     onClick={() => setClearDialog({
                                         open: true,
                                         type: 'localStorage',
-                                        title: 'Clear Local Storage'
+                                        title: translate('cache.clear_local_storage')
                                     })}
                                     fullWidth
                                 >
-                                    Clear Local Storage
+                                    {translate('cache.clear_local_storage')}
                                 </Button>
                             </Box>
                         </CardContent>
@@ -400,18 +398,18 @@ const CacheManagement = () => {
                         <Card>
                             <CardContent>
                                 <Typography variant="h6" gutterBottom>
-                                    Frontend Cache Entries
+                                    {translate('cache.entries')} - {translate('cache.frontend_cache')}
                                 </Typography>
                                 <TableContainer component={Paper} variant="outlined">
                                     <Table size="small">
                                         <TableHead>
                                             <TableRow>
-                                                <TableCell>Key</TableCell>
-                                                <TableCell>Type</TableCell>
-                                                <TableCell>Age</TableCell>
-                                                <TableCell>TTL</TableCell>
-                                                <TableCell>Size</TableCell>
-                                                <TableCell>Status</TableCell>
+                                                <TableCell>{translate('table.key')}</TableCell>
+                                                <TableCell>{translate('table.type')}</TableCell>
+                                                <TableCell>{translate('table.age')}</TableCell>
+                                                <TableCell>{translate('table.ttl')}</TableCell>
+                                                <TableCell>{translate('table.size')}</TableCell>
+                                                <TableCell>{translate('table.status')}</TableCell>
                                             </TableRow>
                                         </TableHead>
                                         <TableBody>
@@ -447,17 +445,17 @@ const CacheManagement = () => {
                         <Card>
                             <CardContent>
                                 <Typography variant="h6" gutterBottom>
-                                    Local Storage Entries
+                                    {translate('cache.entries')} - {translate('cache.local_storage')}
                                 </Typography>
                                 <TableContainer component={Paper} variant="outlined">
                                     <Table size="small">
                                         <TableHead>
                                             <TableRow>
-                                                <TableCell>Key</TableCell>
-                                                <TableCell>Type</TableCell>
-                                                <TableCell>Size</TableCell>
-                                                <TableCell>Value Preview</TableCell>
-                                                <TableCell>Actions</TableCell>
+                                                <TableCell>{translate('table.key')}</TableCell>
+                                                <TableCell>{translate('table.type')}</TableCell>
+                                                <TableCell>{translate('table.size')}</TableCell>
+                                                <TableCell>{translate('table.value_preview')}</TableCell>
+                                                <TableCell>{translate('table.actions')}</TableCell>
                                             </TableRow>
                                         </TableHead>
                                         <TableBody>
@@ -496,15 +494,15 @@ const CacheManagement = () => {
                 <DialogTitle>{clearDialog.title}</DialogTitle>
                 <DialogContent>
                     <Typography>
-                        Are you sure you want to clear this cache? This action cannot be undone.
+                        {translate('dialog.confirm_clear_cache')}
                     </Typography>
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setClearDialog({ open: false, type: '', title: '' })}>
-                        Cancel
+                        {translate('common.cancel')}
                     </Button>
                     <Button onClick={handleClearConfirm} color="error" variant="contained">
-                        Clear Cache
+                        {clearDialog.title}
                     </Button>
                 </DialogActions>
             </Dialog>

@@ -65,7 +65,7 @@ import SharePointExplorerBlockWrapper from './SharePointExplorerBlockWrapper';
  * SharePoint Explorer Block with integrated metrics tracking
  * Tracks user interactions, file access patterns, and performance metrics
  */
-const SharePointExplorerBlock = ({ config, onExecutionUpdate, onSelectionChange, multiSelect = true }) => { // Removed metrics props - will get from wrapper
+const SharePointExplorerBlock = ({ config, onExecutionUpdate, onSelectionChange, multiSelect = true }) => {
   //const theme = useTheme(); // Added for ExplorerCardGrid styling if needed directly here later
 
   const [currentPath, setCurrentPath] = useState([]); // Initialize currentPath state
@@ -116,7 +116,20 @@ return (
         <SharePointExplorerBlockWrapper
           config={config}
           onSelectionChange={onSelectionChange}
-          onExecutionUpdate={onExecutionUpdate}
+          onExecutionUpdate={(update) => {
+            if (onExecutionUpdate) {
+              // Add reload function to the execution update
+              onExecutionUpdate({
+                ...update,
+                onReload: () => {
+                  // This will be provided by the wrapper
+                  if (update.onReload) {
+                    update.onReload();
+                  }
+                }
+              });
+            }
+          }}
           multiSelect={multiSelect}
           onMetricsUpdate={handleMetricsUpdate}
         />

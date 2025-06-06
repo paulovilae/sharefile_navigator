@@ -20,6 +20,7 @@ import {
   Delete,
   Add,
 } from '@mui/icons-material';
+import { useTranslate } from 'react-admin';
 
 const api = async (url, method = 'GET', body) => {
   const res = await fetch(url, {
@@ -62,22 +63,22 @@ function BulkCreateDialog({ open, onClose, onBulkCreate, label, example, dialogT
         setError('Invalid JSON in file');
       }
     };
-    reader.readAsText(file);
+    reader.readAsTextranslate(file);
   };
 
   const handleDrop = (e) => {
-    e.preventDefault();
+    e.preventDefaultranslate();
     setDragOver(false);
     handleFile(e);
   };
 
   const handleDragOver = (e) => {
-    e.preventDefault();
+    e.preventDefaultranslate();
     setDragOver(true);
   };
 
   const handleDragLeave = (e) => {
-    e.preventDefault();
+    e.preventDefaultranslate();
     setDragOver(false);
   };
 
@@ -87,7 +88,7 @@ function BulkCreateDialog({ open, onClose, onBulkCreate, label, example, dialogT
     try {
       const res = await fetch(url);
       if (!res.ok) throw new Error('Failed to fetch URL');
-      const text = await res.text();
+      const text = await res.textranslate();
       JSON.parse(text);
       setJson(text);
       setError('');
@@ -210,6 +211,7 @@ function BulkCreateDialog({ open, onClose, onBulkCreate, label, example, dialogT
 }
 
 export default function SidebarMenuItemEditor() {
+  const translate = useTranslate();
   const [menus, setMenus] = useState([]);
   const [categories, setCategories] = useState([]);
   const [open, setOpen] = useState(false);
@@ -285,7 +287,7 @@ export default function SidebarMenuItemEditor() {
     { field: 'id', title: 'ID' },
     {
       field: 'icon',
-      title: 'Icon',
+      title: translate('table.column.icon'),
       render: (row) => {
         console.log("Rendering icon column for row:", row);
         const IconComponent = iconComponentMap[row.icon];
@@ -317,11 +319,11 @@ export default function SidebarMenuItemEditor() {
         </FormControl>
       )
     }, // Add the Icon column definition and render function
-    { field: 'label', title: 'Label' },
-    { field: 'page_ref', title: 'Page Ref' },
-    { field: 'category_id', title: 'Category' },
-    { field: 'enabled', title: 'Enabled', render: (row) => <Checkbox checked={row.enabled} size="small" color="primary" /> }, // Correct mapping and render as Checkbox with consistent styling
-    { field: 'order', title: 'Order', hidden: true, dialogVisible: false },   // Correct mapping and hide by default, hide in dialog
+    { field: 'label', title: translate('table.column.label') },
+    { field: 'page_ref', title: translate('table.column.page_ref') },
+    { field: 'category_id', title: translate('table.column.category') },
+    { field: 'enabled', title: translate('table.column.enabled'), render: (row) => <Checkbox checked={row.enabled} size="small" color="primary" /> }, // Correct mapping and render as Checkbox with consistent styling
+    { field: 'order', title: translate('table.column.order'), hidden: true, dialogVisible: false },   // Correct mapping and hide by default, hide in dialog
   ];
 
   const handleAddRow = async (newRow) => {

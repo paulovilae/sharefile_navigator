@@ -236,6 +236,9 @@ export const christusDarkTheme = createTheme({
     background: {
       default: '#23234a', // Deep blue-violet
       paper: '#28285a',   // Slightly lighter for cards
+      nav: '#28285a',     // Sidebar, topbar, table headers
+      selected: '#393366',
+      hover: '#393366',
     },
     divider: '#B598C1', // Lila for dividers
     grey: {
@@ -247,7 +250,135 @@ export const christusDarkTheme = createTheme({
     text: {
       primary: '#fff',
       secondary: '#B598C1', // Lila for secondary text
-      buttonText: '#212121',
+      accent: '#B598C1',
+      buttonText: '#fff',
+    },
+    action: {
+      active: '#B598C1',
+      selected: '#393366',
+      hover: '#393366',
+      focus: '#6D247A',
+    },
+  },
+  components: {
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          textTransform: 'none',
+          fontWeight: 600,
+        },
+        containedPrimary: {
+          backgroundColor: '#6D247A',
+          color: '#fff',
+          '&:hover': {
+            backgroundColor: '#4D216D',
+          },
+        },
+        outlinedPrimary: {
+          borderColor: '#6D247A',
+          color: '#6D247A',
+          '&:hover': {
+            backgroundColor: '#393366',
+            borderColor: '#B598C1',
+            color: '#B598C1',
+          },
+        },
+      },
+    },
+    MuiCheckbox: {
+      styleOverrides: {
+        root: {
+          color: '#B598C1',
+          '&.Mui-checked': {
+            color: '#6D247A',
+          },
+        },
+      },
+    },
+    MuiIconButton: {
+      styleOverrides: {
+        root: {
+          color: '#B598C1',
+          '&:hover': {
+            backgroundColor: '#393366',
+          },
+        },
+      },
+    },
+    MuiListItemButton: {
+      styleOverrides: {
+        root: {
+          '&.Mui-selected': {
+            backgroundColor: '#393366',
+            color: '#B598C1',
+            '&:hover': {
+              backgroundColor: '#4D216D',
+            },
+          },
+        },
+      },
+    },
+    MuiDivider: {
+      styleOverrides: {
+        root: {
+          borderColor: '#B598C1',
+        },
+      },
+    },
+    MuiCard: {
+      styleOverrides: {
+        root: {
+          backgroundColor: '#28285a', // Dark card background
+        },
+      },
+    },
+    MuiTableRow: {
+      styleOverrides: {
+        root: {
+          '&.Mui-selected, &[aria-selected="true"]': {
+            backgroundColor: '#393366', // Dark background for selected
+            color: '#fff', // Light text for contrast
+            '&:hover': {
+              backgroundColor: '#4D216D', // Darker on hover
+            },
+          },
+          '&:hover': {
+            backgroundColor: '#393366', // Dark hover background
+          },
+        },
+      },
+    },
+    MuiMenu: {
+      styleOverrides: {
+        paper: {
+          backgroundColor: '#28285a', // Dark menu background
+          color: '#fff', // Light text
+        },
+      },
+    },
+    MuiAppBar: {
+      styleOverrides: {
+        root: {
+          backgroundColor: '#28285a', // Dark topbar
+          color: '#fff',
+        },
+      },
+    },
+    MuiDrawer: {
+      styleOverrides: {
+        paper: {
+          backgroundColor: '#28285a', // Dark sidebar
+          color: '#fff',
+        },
+      },
+    },
+    MuiTableHead: {
+      styleOverrides: {
+        root: {
+          backgroundColor: '#28285a', // Dark table headers
+          color: '#fff',
+        },
+      },
     },
   },
   typography: {
@@ -259,6 +390,7 @@ export const christusDarkTheme = createTheme({
     h5: { fontFamily: 'Montserrat, Arial, sans-serif' },
     h6: { fontFamily: 'Montserrat, Arial, sans-serif' },
   },
+  logo: '/LogoCSS_Intranet.png',
 });
 
 export default christusTheme; 

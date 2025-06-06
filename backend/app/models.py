@@ -163,6 +163,7 @@ class SidebarMenu(Base):
     category_id = Column(Integer, ForeignKey('sidebar_menu_categories.id'), nullable=True)
     order = Column(Integer, default=0)
     enabled = Column(Boolean, default=True)
+    translation_key = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
     category = relationship('SidebarMenuCategory', back_populates='menus')

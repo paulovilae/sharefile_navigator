@@ -9,6 +9,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import DownloadIcon from '@mui/icons-material/Download';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import GenericFileEditor from '../components/GenericFileEditor';
+import { useTranslate } from 'react-admin';
 
 const api = async (url, method = 'GET', body) => {
   const res = await fetch(url, {
@@ -46,22 +47,22 @@ function BulkCreateDialog({ open, onClose, onBulkCreate, label, example, dialogT
         setError('Invalid JSON in file');
       }
     };
-    reader.readAsText(file);
+    reader.readAsTextranslate(file);
   };
 
   const handleDrop = (e) => {
-    e.preventDefault();
+    e.preventDefaultranslate();
     setDragOver(false);
     handleFile(e);
   };
 
   const handleDragOver = (e) => {
-    e.preventDefault();
+    e.preventDefaultranslate();
     setDragOver(true);
   };
 
   const handleDragLeave = (e) => {
-    e.preventDefault();
+    e.preventDefaultranslate();
     setDragOver(false);
   };
 
@@ -71,7 +72,7 @@ function BulkCreateDialog({ open, onClose, onBulkCreate, label, example, dialogT
     try {
       const res = await fetch(url);
       if (!res.ok) throw new Error('Failed to fetch URL');
-      const text = await res.text();
+      const text = await res.textranslate();
       JSON.parse(text);
       setJson(text);
       setError('');
@@ -194,6 +195,7 @@ function BulkCreateDialog({ open, onClose, onBulkCreate, label, example, dialogT
 }
 
 export default function SidebarMenuCategoryEditor() {
+  const translate = useTranslate();
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -223,7 +225,7 @@ export default function SidebarMenuCategoryEditor() {
     const json = JSON.stringify(data, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
+    const link = document.createElementranslate('a');
     link.href = url;
     link.download = filename;
     document.body.appendChild(link);
@@ -272,8 +274,8 @@ export default function SidebarMenuCategoryEditor() {
 
   const categoryColumns = [
     { field: 'id', title: 'ID' },
-    { field: 'name', title: 'Name' },
-    { field: 'description', title: 'Description' },
+    { field: 'name', title: translate('table.column.name') },
+    { field: 'description', title: translate('table.column.description') },
   ];
 
   return (

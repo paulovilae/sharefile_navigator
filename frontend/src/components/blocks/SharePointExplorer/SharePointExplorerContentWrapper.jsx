@@ -105,7 +105,29 @@ const SharePointExplorerContentWrapper = ({
       setMetrics={setMetrics}
       config={config}
       onSelectionChange={onSelectionChange}
-      onExecutionUpdate={onExecutionUpdate}
+      onExecutionUpdate={(update) => {
+        if (onExecutionUpdate) {
+          // Add reload functionality
+          onExecutionUpdate({
+            ...update,
+            onReload: () => {
+              // Reload current view
+              if (selectedLibrary) {
+                if (currentPath.length > 0) {
+                  // Reload current folder
+                  fetchFolderContents(selectedLibrary.id, currentPath[currentPath.length - 1].id);
+                } else {
+                  // Reload library root
+                  fetchFolderContents(selectedLibrary.id);
+                }
+              } else {
+                // Reload libraries
+                fetchLibraries();
+              }
+            }
+          });
+        }
+      }}
       multiSelect={multiSelect}
       setSelectedItems={selectionSetSelectedItems}
     />

@@ -6,7 +6,7 @@ import ListItemText from '@mui/material/ListItemText';
 import Collapse from '@mui/material/Collapse';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
-import { MenuItemLink } from 'react-admin';
+import { MenuItemLink, useSidebarState } from 'react-admin';
 
 /**
  * Recursive MultiLevelMenu component for React-admin (Community Edition)
@@ -25,21 +25,25 @@ const MultiLevelMenu = ({ items = [], level = 0, onMenuClick }) => {
 
 const MultiLevelMenuItem = ({ item, level, onMenuClick }) => {
     const [open, setOpen] = useState(false);
+    const [sidebarOpen] = useSidebarState();
     const hasChildren = Array.isArray(item.children) && item.children.length > 0;
 
     if (item.type === 'link') {
         return (
             <MenuItemLink
                 to={item.to}
-                primaryText={item.label}
+                primaryText={sidebarOpen ? item.label : ''} // Hide text when sidebar is collapsed
                 leftIcon={item.icon}
                 onClick={onMenuClick}
                 style={{
-                    paddingLeft: 4 + level * 8,
+                    paddingLeft: sidebarOpen ? 4 + level * 8 : 8,
                     paddingTop: 4,
                     paddingBottom: 4,
                     paddingRight: 4,
-                    minHeight: 32
+                    minHeight: 32,
+                    justifyContent: sidebarOpen ? 'flex-start' : 'center',
+                    minWidth: sidebarOpen ? 'auto' : '48px',
+                    maxWidth: sidebarOpen ? 'auto' : '48px',
                 }}
             />
         );
@@ -51,18 +55,21 @@ const MultiLevelMenuItem = ({ item, level, onMenuClick }) => {
                 button
                 onClick={() => setOpen((o) => !o)}
                 style={{
-                    paddingLeft: 8 + level * 12,
+                    paddingLeft: sidebarOpen ? 8 + level * 12 : 8,
                     paddingTop: 6,
                     paddingBottom: 6,
-                    minHeight: 36
+                    minHeight: 36,
+                    justifyContent: sidebarOpen ? 'flex-start' : 'center',
                 }}
             >
-                {item.icon && <ListItemIcon sx={{ minWidth: 32 }}>{item.icon}</ListItemIcon>}
-                <ListItemText
-                    primary={item.label}
-                    primaryTypographyProps={{ fontSize: '0.875rem' }}
-                />
-                {open ? <ExpandLess fontSize="small" /> : <ExpandMore fontSize="small" />}
+                {item.icon && <ListItemIcon sx={{ minWidth: sidebarOpen ? 32 : 'auto', marginRight: sidebarOpen ? 1 : 0 }}>{item.icon}</ListItemIcon>}
+                {sidebarOpen && (
+                    <ListItemText
+                        primary={item.label}
+                        primaryTypographyProps={{ fontSize: '0.875rem' }}
+                    />
+                )}
+                {sidebarOpen && (open ? <ExpandLess fontSize="small" /> : <ExpandMore fontSize="small" />)}
             </ListItem>
             <Collapse in={open} timeout="auto" unmountOnExit>
                 <MultiLevelMenu items={item.children} level={level + 1} onMenuClick={onMenuClick} />

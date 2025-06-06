@@ -1,20 +1,83 @@
 import * as React from 'react';
-import { AppBar as RaAppBar } from 'react-admin';
-import { Toolbar, Typography, Box } from '@mui/material';
-import SettingsIcon from '@mui/icons-material/Settings';
-import IconButton from '@mui/material/IconButton';
-import Tooltip from '@mui/material/Tooltip';
-import RefreshIcon from '@mui/icons-material/Refresh';
+import {
+    AppBar as RaAppBar,
+    TitlePortal,
+    LoadingIndicator,
+    ToggleThemeButton,
+    LocalesMenuButton,
+    UserMenu,
+    useTranslate
+} from 'react-admin';
+import { Typography, Box, IconButton, Tooltip, Menu, MenuItem, ListItemIcon, ListItemText } from '@mui/material';
+import { AccountCircle, Person, Settings, ExitToApp } from '@mui/icons-material';
 import { useTheme } from '@mui/material/styles';
 
-const CustomAppBar = (props) => {
-    const { sidebarOpen, toggleSidebar, ...rest } = props;
+const CustomAppBar = React.memo((props) => {
+    const translate = useTranslate();
     const theme = useTheme();
     const logoUrl = theme.logo;
+    const [userMenuAnchor, setUserMenuAnchor] = React.useState(null);
+    
+    const handleUserMenuClick = (event) => {
+        setUserMenuAnchor(event.currentTarget);
+    };
+    
+    const handleUserMenuClose = () => {
+        setUserMenuAnchor(null);
+    };
+    
+    const handleProfileClick = () => {
+        console.log('Profile clicked');
+        // Navigate to profile page or open profile dialog
+        handleUserMenuClose();
+    };
+    
+    const handleSettingsClick = () => {
+        console.log('User settings clicked');
+        // Navigate to user settings
+        window.location.hash = '#/settings';
+        handleUserMenuClose();
+    };
+    
+    const handleLogoutClick = () => {
+        console.log('Logout clicked');
+        // Implement logout functionality
+        handleUserMenuClose();
+    };
+    
+    
     return (
         <RaAppBar
-            {...rest}
-            color="default"
+            {...props}
+            toolbar={
+                <>
+                    <LoadingIndicator />
+                    <ToggleThemeButton />
+                    <LocalesMenuButton />
+                </>
+            }
+            userMenu={
+                <UserMenu>
+                    <MenuItem onClick={handleProfileClick}>
+                        <ListItemIcon>
+                            <Person fontSize="small" />
+                        </ListItemIcon>
+                        <ListItemText>Profile</ListItemText>
+                    </MenuItem>
+                    <MenuItem onClick={handleSettingsClick}>
+                        <ListItemIcon>
+                            <Settings fontSize="small" />
+                        </ListItemIcon>
+                        <ListItemText>Settings</ListItemText>
+                    </MenuItem>
+                    <MenuItem onClick={handleLogoutClick}>
+                        <ListItemIcon>
+                            <ExitToApp fontSize="small" />
+                        </ListItemIcon>
+                        <ListItemText>Logout</ListItemText>
+                    </MenuItem>
+                </UserMenu>
+            }
             sx={{
                 backgroundColor: theme.palette.primary.main,
                 color: theme.palette.primary.contrastText,
@@ -25,37 +88,27 @@ const CustomAppBar = (props) => {
                     color: theme.palette.primary.contrastText,
                     fill: theme.palette.primary.contrastText,
                 },
+                '& .MuiToolbar-root': {
+                    minHeight: '35px !important',
+                    height: '35px !important',
+                    paddingLeft: 2,
+                    paddingRight: 2,
+                },
             }}
         >
-            <Toolbar disableGutters sx={{ minHeight: '35px !important', height: '35px !important', px: 2, alignItems: 'center' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <img src={logoUrl} alt="Logo" style={{ height: 24, marginRight: 10 }} />
+            <TitlePortal>
+                <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1 }}>
+                    <img src={logoUrl} alt="Logo" style={{ height: 24, marginRight: 10, marginLeft: 8 }} />
                     <Typography variant="h6" sx={{ color: theme.palette.primary.contrastText, fontWeight: 600, fontSize: 16, lineHeight: '35px', letterSpacing: 1 }}>
-                        CHRISTUS Health File Navigator
+                        {translate('app.title')}
                     </Typography>
                 </Box>
-                <Box sx={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Tooltip title="Refresh all data (clears cache)">
-                    <IconButton
-                      color="inherit"
-                      size="large"
-                      onClick={() => {
-                        console.log('[Global] Dispatching global refresh event');
-                        window.dispatchEvent(new CustomEvent('globalRefresh'));
-                      }}
-                    >
-                      <RefreshIcon />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="AppBar Settings (cache control)">
-                    <IconButton color="inherit" size="large">
-                      <SettingsIcon />
-                    </IconButton>
-                  </Tooltip>
-                </Box>
-            </Toolbar>
+            </TitlePortal>
         </RaAppBar>
     );
-};
+});
 
-export default CustomAppBar; 
+// Add display name for debugging
+CustomAppBar.displayName = 'CustomAppBar';
+
+export default CustomAppBar;

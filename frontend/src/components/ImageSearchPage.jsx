@@ -39,8 +39,10 @@ import {
     ZoomIn as ZoomIcon
 } from '@mui/icons-material';
 import { searchImages, getImageUrl, getSearchSuggestions, highlightSearchTerms, extractRelevantSnippet } from '../utils/imageSearchUtils';
+import { useTranslate } from 'react-admin';
 
 const ImageSearchPage = () => {
+    const translate = useTranslate();
     // Search state
     const [query, setQuery] = useState('');
     const [results, setResults] = useState([]);
@@ -122,7 +124,7 @@ const ImageSearchPage = () => {
 
     // Handle form submission
     const handleSubmit = (event) => {
-        event.preventDefault();
+        event.preventDefaultranslate();
         handleSearch(true);
     };
 
@@ -344,7 +346,7 @@ const ImageSearchPage = () => {
                         <IconButton
                             size="small"
                             onClick={() => {
-                                navigator.clipboard.writeText(result.file_id);
+                                navigator.clipboard.writeTextranslate(result.file_id);
                                 // You could add a toast notification here
                             }}
                         >
@@ -386,10 +388,10 @@ const ImageSearchPage = () => {
         <Box sx={{ p: 3, maxWidth: 1400, mx: 'auto' }}>
             {/* Header */}
             <Typography variant="h4" component="h1" gutterBottom>
-                Image Search
+                {translate('search.image_search')}
             </Typography>
             <Typography variant="subtitle1" color="text.secondary" sx={{ mb: 3 }}>
-                Search through processed documents to find images by text content
+                {translate('search.description')}
             </Typography>
 
             {/* Search Form */}
@@ -404,7 +406,7 @@ const ImageSearchPage = () => {
                             <TextField
                                 {...params}
                                 fullWidth
-                                label="Search for images by text content..."
+                                label={translate('search.placeholder')}
                                 variant="outlined"
                                 InputProps={{
                                     ...params.InputProps,
@@ -422,7 +424,7 @@ const ImageSearchPage = () => {
                                                 sx={{ ml: 1 }}
                                                 startIcon={loading ? <CircularProgress size={20} /> : <SearchIcon />}
                                             >
-                                                Search
+                                                {translate('common.search')}
                                             </Button>
                                         </InputAdornment>
                                     )
@@ -435,42 +437,42 @@ const ImageSearchPage = () => {
                 {/* Filters */}
                 <Box sx={{ mt: 2, display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
                     <FormControl size="small" sx={{ minWidth: 120 }}>
-                        <InputLabel>Text Type</InputLabel>
+                        <InputLabel>{translate('search.text_type')}</InputLabel>
                         <Select
                             value={filters.textType}
-                            label="Text Type"
+                            label={translate('search.text_type')}
                             onChange={(e) => handleFilterChange('textType', e.target.value)}
                         >
-                            <MenuItem value="all">All Text</MenuItem>
-                            <MenuItem value="pdf">PDF Text Only</MenuItem>
-                            <MenuItem value="ocr">OCR Text Only</MenuItem>
+                            <MenuItem value="all">{translate('search.all_text')}</MenuItem>
+                            <MenuItem value="pdf">{translate('search.pdf_text_only')}</MenuItem>
+                            <MenuItem value="ocr">{translate('search.ocr_text_only')}</MenuItem>
                         </Select>
                     </FormControl>
 
                     <FormControl size="small" sx={{ minWidth: 120 }}>
-                        <InputLabel>Sort By</InputLabel>
+                        <InputLabel>{translate('search.sort_by')}</InputLabel>
                         <Select
                             value={filters.sortBy}
-                            label="Sort By"
+                            label={translate('search.sort_by')}
                             onChange={(e) => handleFilterChange('sortBy', e.target.value)}
                         >
-                            <MenuItem value="relevance">Relevance</MenuItem>
-                            <MenuItem value="date">Date</MenuItem>
-                            <MenuItem value="filename">File ID</MenuItem>
+                            <MenuItem value="relevance">{translate('search.relevance')}</MenuItem>
+                            <MenuItem value="date">{translate('search.date')}</MenuItem>
+                            <MenuItem value="filename">{translate('search.filename')}</MenuItem>
                         </Select>
                     </FormControl>
 
                     <Box sx={{ ml: 'auto', display: 'flex', gap: 1 }}>
-                        <Tooltip title="Grid View">
-                            <IconButton 
+                        <Tooltip title={translate('search.grid_view')}>
+                            <IconButton
                                 onClick={() => setViewMode('grid')}
                                 color={viewMode === 'grid' ? 'primary' : 'default'}
                             >
                                 <GridViewIcon />
                             </IconButton>
                         </Tooltip>
-                        <Tooltip title="List View">
-                            <IconButton 
+                        <Tooltip title={translate('search.list_view')}>
+                            <IconButton
                                 onClick={() => setViewMode('list')}
                                 color={viewMode === 'list' ? 'primary' : 'default'}
                             >
@@ -491,8 +493,8 @@ const ImageSearchPage = () => {
             {/* Results Summary */}
             {totalResults > 0 && (
                 <Typography variant="h6" sx={{ mb: 2 }}>
-                    {totalResults.toLocaleString()} image{totalResults !== 1 ? 's' : ''} found
-                    {query && ` for "${query}"`}
+                    {totalResults.toLocaleString()} {totalResults !== 1 ? translate('search.images_found_plural') : translate('search.images_found')} {translate('search.found')}
+                    {query && ` ${translate('search.for')} "${query}"`}
                 </Typography>
             )}
 
@@ -553,10 +555,10 @@ const ImageSearchPage = () => {
             {!loading && query.trim() && searchResultsWithHighlights.length === 0 && totalResults === 0 && !error && (
                 <Paper sx={{ p: 4, textAlign: 'center' }}>
                     <Typography variant="h6" gutterBottom>
-                        No images found
+                        {translate('search.no_images_found')}
                     </Typography>
                     <Typography variant="body1" color="text.secondary">
-                        Try different keywords or check your spelling
+                        {translate('search.try_different_keywords')}
                     </Typography>
                 </Paper>
             )}
@@ -566,10 +568,10 @@ const ImageSearchPage = () => {
                 <Paper sx={{ p: 4, textAlign: 'center' }}>
                     <SearchIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
                     <Typography variant="h6" gutterBottom>
-                        Search for Images
+                        {translate('search.search_for_images')}
                     </Typography>
                     <Typography variant="body1" color="text.secondary">
-                        Enter keywords to find images based on their text content
+                        {translate('search.enter_keywords')}
                     </Typography>
                 </Paper>
             )}

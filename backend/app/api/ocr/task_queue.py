@@ -15,7 +15,9 @@ class PersistentTaskQueue:
     """
     
     def __init__(self):
-        self.executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="batch_processor")
+        # Reduce max_workers to 1 to prevent overwhelming the system
+        # This ensures only one batch processes at a time, reducing system load
+        self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="batch_processor")
         self.running_tasks = {}
         self.task_results = {}
         
@@ -28,6 +30,24 @@ class PersistentTaskQueue:
         def run_async_in_thread():
             try:
                 print(f"TASK_QUEUE: Starting thread execution for batch {batch_id}")
+                
+                # Set lower thread priority to prevent blocking other operations
+                import threading
+                import os
+                current_thread = threading.current_thread()
+                
+                # On Windows, try to set lower priority
+                try:
+                    if os.name == 'nt':  # Windows
+                        import ctypes
+                        # Set thread priority to below normal
+                        ctypes.windll.kernel32.SetThreadPriority(
+                            ctypes.windll.kernel32.GetCurrentThread(), -1
+                        )
+                        print(f"TASK_QUEUE: Set lower thread priority for batch {batch_id}")
+                except Exception as e:
+                    print(f"TASK_QUEUE: Could not set thread priority: {e}")
+                
                 # Create a new event loop for this thread
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)

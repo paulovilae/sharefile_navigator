@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, Fragment } from 'react';
 import axios from 'axios';
 import {
     Box,
@@ -14,24 +14,55 @@ import {
     Divider,
     useTheme,
     Chip,
-    LinearProgress
+    LinearProgress,
+    Paper,
+    Stack,
+    Tooltip,
+    Switch,
+    FormControlLabel
 } from '@mui/material';
 import {
     ExpandMore as ExpandMoreIcon,
     Settings as SettingsIcon,
     FolderOpen as FolderOpenIcon,
     PictureAsPdf as PictureAsPdfIcon,
-    NavigateNext as NavigateNextIcon
+    NavigateNext as NavigateNextIcon,
+    ArrowBack as ArrowBackIcon,
+    Home as HomeIcon
 } from '@mui/icons-material';
 
 import SharePointExplorerBlock from './blocks/SharePointExplorer/SharePointExplorerBlock';
 import OCRBlock from './blocks/OCRBlock'; // Unified OCR Block import
 import BatchOcrProcessor from './BatchOcrProcessor';
+import PaginatedBatchProcessor from './PaginatedBatchProcessor';
+import SharePointFilterSettings from './SharePointFilterSettings';
+import UnifiedProcessingSettings from './UnifiedProcessingSettings';
 import { blockTemplate } from '../theme/blockTemplate';
+import useBrowserHistory from '../hooks/useBrowserHistory';
+import { useTranslate } from 'react-admin';
 
 const OcrWorkflow = () => {
+    const translate = useTranslate();
     const theme = useTheme();
     const blockStyles = blockTemplate(theme);
+    
+    // Simplified workflow with only essential blocks
+    const workflowSteps = [
+        {
+            id: 'sharepoint-selection',
+            title: translate('sharepoint.file_selection'),
+            icon: <FolderOpenIcon />,
+            description: translate('sharepoint.file_selection_desc'),
+            component: 'sharepoint'
+        },
+        {
+            id: 'pdf-preprocessing',
+            title: translate('workflow.pdf_preprocessing'),
+            icon: <PictureAsPdfIcon />,
+            description: translate('workflow.pdf_preprocessing_desc'),
+            component: 'pdf-preprocessing'
+        }
+    ];
     
     // State for workflow steps
     const [currentStep, setCurrentStep] = useState(0);
@@ -40,10 +71,44 @@ const OcrWorkflow = () => {
     // State for SharePoint selection
     const [selectedFiles, setSelectedFiles] = useState([]);
     const [settingsExpanded, setSettingsExpanded] = useState(false);
+    const [usePaginatedProcessor, setUsePaginatedProcessor] = useState(true);
+    const [processingSettings, setProcessingSettings] = useState(null);
     
     // State for block executions
     const [sharePointExecution, setSharePointExecution] = useState(null);
     const [pdfOcrExecution, setPdfOcrExecution] = useState(null);
+    
+    // Browser history management
+    const { navigateToStep, goBack } = useBrowserHistory(currentStep, setCurrentStep, workflowSteps);
+
+    // Check for active batches on component mount
+    useEffect(() => {
+        const checkActiveBatches = async () => {
+            try {
+                console.log('[OcrWorkflow] Checking for active batches...');
+                const response = await axios.get('/api/ocr/batch/list');
+                const activeBatches = response.data?.jobs || {};
+                
+                if (Object.keys(activeBatches).length > 0) {
+                    console.log('[OcrWorkflow] Found active batches:', Object.keys(activeBatches));
+                    console.log('[OcrWorkflow] Auto-navigating to Step 2 to show active batch status');
+                    
+                    // Auto-navigate to Step 2 (PDF Preprocessing & OCR)
+                    setCurrentStep(1);
+                    setExpandedSteps([1]);
+                    
+                    // Enable paginated processor to show the active batch
+                    setUsePaginatedProcessor(true);
+                } else {
+                    console.log('[OcrWorkflow] No active batches found');
+                }
+            } catch (error) {
+                console.error('[OcrWorkflow] Error checking active batches:', error);
+            }
+        };
+        
+        checkActiveBatches();
+    }, []);
 
     // Handle SharePoint block execution updates
     const handleSharePointUpdate = useCallback((update) => {
@@ -57,30 +122,17 @@ const OcrWorkflow = () => {
         setPdfOcrExecution(prev => ({ ...prev, ...update }));
     }, []);
     
-    // Simplified workflow with only essential blocks
-    const workflowSteps = [
-        {
-            id: 'sharepoint-selection',
-            title: 'SharePoint File Selection',
-            icon: <FolderOpenIcon />,
-            description: 'Select PDF files or directories from SharePoint',
-            component: 'sharepoint'
-        },
-        {
-            id: 'pdf-preprocessing',
-            title: 'PDF Preprocessing & OCR',
-            icon: <PictureAsPdfIcon />,
-            description: 'Convert, preprocess, and extract text from PDF files with quality assessment',
-            component: 'pdf-preprocessing'
-        }
-    ];
-
     // Use workflowSteps as blocks
     const blocks = workflowSteps;
 
     const handleSelectionChange = useCallback((selectedItems) => {
         console.log('SharePoint selection changed:', selectedItems);
         setSelectedFiles(selectedItems);
+    }, []);
+
+    const handleSettingsChange = useCallback((settings) => {
+        console.log('Processing settings changed:', settings);
+        setProcessingSettings(settings);
     }, []);
 
     const handleNextStep = () => {
@@ -94,7 +146,8 @@ const OcrWorkflow = () => {
                 newExpandedSteps.push(currentStep + 1);
             }
             setExpandedSteps(newExpandedSteps);
-            setCurrentStep(currentStep + 1);
+            // Use browser history navigation
+            navigateToStep(currentStep + 1);
         }
     };
 
@@ -105,7 +158,8 @@ const OcrWorkflow = () => {
         } else {
             setExpandedSteps([...expandedSteps, stepIndex]);
         }
-        setCurrentStep(stepIndex);
+        // Use browser history navigation
+        navigateToStep(stepIndex);
     };
 
     const renderStepContent = (step) => {
@@ -118,33 +172,31 @@ const OcrWorkflow = () => {
                             onSelectionChange={handleSelectionChange}
                             multiSelect={true}
                         />
-                        {/* Selection Summary */}
-                        {selectedFiles.length > 0 && (
-                            <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
-                                <Typography variant="subtitle2" gutterBottom>
-                                    Selected Items ({selectedFiles.length}):
-                                </Typography>
-                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                                    {selectedFiles.map((file, index) => (
-                                        <Chip
-                                            key={index}
-                                            label={`${file.name} (${file.itemType})`}
-                                            size="small"
-                                            variant="outlined"
-                                        />
-                                    ))}
-                                </Box>
-                            </Box>
-                        )}
                     </Box>
                 );
             case 'pdf-preprocessing':
                 return (
                     <Box>
-                        <BatchOcrProcessor
-                            selectedFiles={selectedFiles}
-                            onProcessingUpdate={handlePdfOcrUpdate}
+                        {/* Unified Settings Panel */}
+                        <UnifiedProcessingSettings
+                            usePaginatedProcessor={usePaginatedProcessor}
+                            onPaginatedProcessorChange={setUsePaginatedProcessor}
+                            onSettingsChange={handleSettingsChange}
                         />
+                        
+                        {usePaginatedProcessor ? (
+                            <PaginatedBatchProcessor
+                                selectedFiles={selectedFiles}
+                                onProcessingUpdate={handlePdfOcrUpdate}
+                                settings={processingSettings}
+                            />
+                        ) : (
+                            <BatchOcrProcessor
+                                selectedFiles={selectedFiles}
+                                onProcessingUpdate={handlePdfOcrUpdate}
+                                settings={processingSettings}
+                            />
+                        )}
                     </Box>
                 );
             default:
@@ -170,14 +222,22 @@ const OcrWorkflow = () => {
             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <SettingsIcon fontSize="small" />
-                    <Typography variant="subtitle2">Settings</Typography>
+                    <Typography variant="subtitle2">{translate('block.settings')}</Typography>
                 </Box>
             </AccordionSummary>
             <AccordionDetails>
-                <Typography variant="body2" color="text.secondary">
-                    OCR processing settings will be configured here.
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                    Configurar ajustes predeterminados para el explorador de archivos de SharePoint y procesamiento OCR.
                 </Typography>
-                {/* TODO: Add actual settings controls */}
+                <SharePointFilterSettings
+                    onClose={() => setSettingsExpanded(false)}
+                    onReload={() => {
+                        // Force reload of SharePoint explorer
+                        if (sharePointExecution?.onReload) {
+                            sharePointExecution.onReload();
+                        }
+                    }}
+                />
             </AccordionDetails>
         </Accordion>
     );
@@ -187,13 +247,44 @@ const OcrWorkflow = () => {
     return (
         <Box sx={{ p: 2, maxWidth: 1200, mx: 'auto' }}>
             <Typography variant="h4" gutterBottom sx={{ mb: 3 }}>
-                OCR Processing Workflow
+                {translate('workflow.ocr_processing')}
             </Typography>
+            
+            {/* Back Navigation Header */}
+            {currentStep > 0 && (
+                <Paper elevation={1} sx={{ p: 1, mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                        <Tooltip title="Back to Previous Step">
+                            <IconButton size="small" onClick={goBack}>
+                                <ArrowBackIcon />
+                            </IconButton>
+                        </Tooltip>
+                        {workflowSteps.slice(0, currentStep + 1).map((step, index) => (
+                            <React.Fragment key={step.id}>
+                                {index > 0 && <Typography variant="body2" sx={{ mx: 0.5 }}>/</Typography>}
+                                <Chip
+                                    label={step.title}
+                                    size="small"
+                                    variant={index === currentStep ? "filled" : "outlined"}
+                                    color={index === currentStep ? "primary" : "default"}
+                                    onClick={() => navigateToStep(index)}
+                                    sx={{ cursor: 'pointer' }}
+                                />
+                            </React.Fragment>
+                        ))}
+                    </Stack>
+                    <Tooltip title="Go to Dashboard">
+                        <IconButton size="small" onClick={() => window.history.back()}>
+                            <HomeIcon />
+                        </IconButton>
+                    </Tooltip>
+                </Paper>
+            )}
             
             {/* Progress indicator */}
             <Box sx={{ mb: 3 }}>
                 <Typography variant="body2" color="text.secondary" gutterBottom>
-                    Step {currentStep + 1} of {blocks.length}
+                    {translate('workflow.step_of', { current: currentStep + 1, total: blocks.length })}
                 </Typography>
                 <LinearProgress
                     variant="determinate"
@@ -272,7 +363,7 @@ const OcrWorkflow = () => {
                                                 disabled={index === 0 && selectedFiles.length === 0}
                                                 sx={blockStyles.button?.sx || {}}
                                             >
-                                                {index === blocks.length - 2 ? 'Finish' : 'Next Step'}
+                                                {index === blocks.length - 2 ? translate('button.finish') : translate('button.next_step')}
                                             </Button>
                                         </Box>
                                     )}

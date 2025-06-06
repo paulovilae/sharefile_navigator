@@ -18,40 +18,12 @@ def upgrade():
     """
     Create indexes to optimize search performance for large databases.
     """
-    # Create index on status for filtering processed files
-    op.create_index(
-        'idx_ocr_results_status',
-        'ocr_results',
-        ['status']
-    )
-    
-    # Create index on created_at for date range filtering
-    op.create_index(
-        'idx_ocr_results_created_at',
-        'ocr_results',
-        ['created_at']
-    )
-    
-    # Create index on file_id for quick lookups
-    op.create_index(
-        'idx_ocr_results_file_id',
-        'ocr_results',
-        ['file_id']
-    )
-    
-    # Create composite index for common search patterns
-    op.create_index(
-        'idx_ocr_results_status_created',
-        'ocr_results',
-        ['status', 'created_at']
-    )
-    
-    # Create index to quickly find records with images
-    op.execute("""
-        CREATE INDEX idx_ocr_results_has_images 
-        ON ocr_results 
-        WHERE pdf_image_path IS NOT NULL OR ocr_image_path IS NOT NULL
-    """)
+    # Create indexes with IF NOT EXISTS to avoid conflicts
+    op.execute("CREATE INDEX IF NOT EXISTS idx_ocr_results_status ON ocr_results (status)")
+    op.execute("CREATE INDEX IF NOT EXISTS idx_ocr_results_created_at ON ocr_results (created_at)")
+    op.execute("CREATE INDEX IF NOT EXISTS idx_ocr_results_file_id ON ocr_results (file_id)")
+    op.execute("CREATE INDEX IF NOT EXISTS idx_ocr_results_status_created ON ocr_results (status, created_at)")
+    op.execute("CREATE INDEX IF NOT EXISTS idx_ocr_results_has_images ON ocr_results (id) WHERE pdf_image_path IS NOT NULL OR ocr_image_path IS NOT NULL")
 
 def downgrade():
     """

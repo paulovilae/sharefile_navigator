@@ -19,6 +19,7 @@ import {
   Assessment as MetricsIcon,
   Assessment,
 } from '@mui/icons-material';
+import { useTranslate } from 'react-admin';
 
 const SharePointExplorerMetrics = ({
   metrics,
@@ -27,6 +28,7 @@ const SharePointExplorerMetrics = ({
   getSessionDuration,
   getCacheHitRate
 }) => {
+  const translate = useTranslate();
   const theme = useTheme();
   
   return (
@@ -41,33 +43,33 @@ const SharePointExplorerMetrics = ({
           <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
             <MetricsIcon sx={{ mr: 1, color: 'primary.main' }} />
             <Typography variant="h6" sx={{ flexGrow: 1 }}>
-              Block Metrics
+              {translate('block.metrics')}
             </Typography>
             <Box sx={{ display: 'flex', gap: 0.5 }}>
               <Chip
                 icon={<FolderOpenIcon />}
-                label={`${metrics.currentFolderCount} folders`}
+                label={`${metrics.currentFolderCount} ${translate('metrics.folders')}`}
                 size="small"
                 color="primary"
                 variant="outlined"
               />
               <Chip
                 icon={<FileCountIcon />}
-                label={`${metrics.pdfFilesCount} PDFs`}
+                label={`${metrics.pdfFilesCount} ${translate('metrics.pdfs')}`}
                 size="small"
                 color="error"
                 variant="outlined"
               />
               <Chip
                 icon={<FileCountIcon />}
-                label={`${metrics.otherFilesCount} other`}
+                label={`${metrics.otherFilesCount} ${translate('metrics.other')}`}
                 size="small"
                 color="secondary"
                 variant="outlined"
               />
               <Chip
                 icon={<SpeedIcon />}
-                label={`${Math.round(metrics.averageResponseTime)}ms avg`}
+                label={`${Math.round(metrics.averageResponseTime)}ms ${translate('metrics.avg')}`}
                 size="small"
                 color={metrics.averageResponseTime < 500 ? 'success' : 'warning'}
                 variant="outlined"
