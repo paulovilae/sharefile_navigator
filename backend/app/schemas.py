@@ -274,6 +274,10 @@ class SidebarMenuRead(SidebarMenuBase):
 # OcrImagesRequest
 class OcrImagesRequest(BaseModel):
     image_paths: List[str]
+    engine: str = "easyocr"
+    lang: str = "en"
+    paragraph: bool = False
+    preferred_gpu: Optional[str] = "auto"  # "auto", "0", "1", "2", etc.
 
 # Block Execution Update Schema
 class BlockExecutionUpdate(BaseModel):

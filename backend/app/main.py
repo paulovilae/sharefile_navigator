@@ -16,6 +16,7 @@ from app.api import preload
 from app.api import search
 from app.api import images
 from app.api.thumbnails import routes as thumbnails_router # Updated import
+from app.api import system_monitor
 from app.startup import setup_startup_tasks, preload_health_check
 
 load_dotenv()
@@ -48,6 +49,7 @@ app.include_router(preload.router, prefix="/api/preload", tags=["preload"])
 app.include_router(search.router, prefix="/api/search", tags=["search"])
 app.include_router(images.router, prefix="/api/images", tags=["images"])
 app.include_router(thumbnails_router.router, prefix="/api/thumbnails", tags=["thumbnails"]) # Updated router
+app.include_router(system_monitor.router, prefix="/api/system-monitor", tags=["system_monitor"])
 
 @app.get("/health")
 def health_check():

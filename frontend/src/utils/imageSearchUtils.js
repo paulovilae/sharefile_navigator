@@ -84,10 +84,23 @@ export const highlightSearchTerms = (text, searchTerms) => {
     const terms = Array.isArray(searchTerms) ? searchTerms : [searchTerms];
     let highlightedText = text;
     
-    terms.forEach(term => {
+    // Sort terms by length (longest first) to avoid nested highlights
+    const sortedTerms = [...terms].sort((a, b) => b.length - a.length);
+    
+    sortedTerms.forEach(term => {
         if (term.trim()) {
-            const regex = new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-            highlightedText = highlightedText.replace(regex, '<mark>$1</mark>');
+            // Escape special regex characters and create word boundary-aware regex when possible
+            const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            
+            // For terms that are likely complete words, use word boundaries
+            let regex;
+            if (term.length > 3 && /^[a-zA-Z0-9]+$/.test(term)) {
+                regex = new RegExp(`\\b(${escapedTerm})\\b`, 'gi');
+            } else {
+                regex = new RegExp(`(${escapedTerm})`, 'gi');
+            }
+            
+            highlightedText = highlightedText.replace(regex, '<mark><strong>$1</strong></mark>');
         }
     });
     
@@ -95,31 +108,68 @@ export const highlightSearchTerms = (text, searchTerms) => {
 };
 
 // Extract relevant text snippet around search terms
-export const extractRelevantSnippet = (text, searchTerms, maxLength = 200) => {
+export const extractRelevantSnippet = (text, searchTerms, maxLength = 300) => {
     if (!text || !searchTerms) return '';
     
     const terms = Array.isArray(searchTerms) ? searchTerms : [searchTerms];
     const lowerText = text.toLowerCase();
     
-    // Find the first occurrence of any search term
-    let firstIndex = -1;
-    let foundTerm = '';
+    // Find all occurrences of search terms
+    const occurrences = [];
     
     for (const term of terms) {
-        const index = lowerText.indexOf(term.toLowerCase());
-        if (index !== -1 && (firstIndex === -1 || index < firstIndex)) {
-            firstIndex = index;
-            foundTerm = term;
+        if (!term.trim()) continue;
+        
+        const termLower = term.toLowerCase();
+        let pos = lowerText.indexOf(termLower);
+        
+        while (pos !== -1) {
+            occurrences.push({
+                term,
+                index: pos,
+                length: term.length
+            });
+            pos = lowerText.indexOf(termLower, pos + 1);
         }
     }
     
-    if (firstIndex === -1) {
+    // Sort occurrences by position
+    occurrences.sort((a, b) => a.index - b.index);
+    
+    // If no occurrences found, return beginning of text
+    if (occurrences.length === 0) {
         return text.substring(0, maxLength) + (text.length > maxLength ? '...' : '');
     }
     
-    // Extract snippet around the found term
-    const start = Math.max(0, firstIndex - maxLength / 2);
-    const end = Math.min(text.length, start + maxLength);
+    // Find the best occurrence to center the snippet around
+    // Prioritize occurrences that have other occurrences nearby to show multiple matches
+    let bestOccurrence = occurrences[0];
+    let bestScore = 0;
+    
+    for (let i = 0; i < occurrences.length; i++) {
+        const current = occurrences[i];
+        let score = 0;
+        
+        // Count nearby occurrences within half the maxLength
+        for (let j = 0; j < occurrences.length; j++) {
+            if (i !== j) {
+                const distance = Math.abs(current.index - occurrences[j].index);
+                if (distance < maxLength / 2) {
+                    score += 1;
+                }
+            }
+        }
+        
+        if (score > bestScore) {
+            bestScore = score;
+            bestOccurrence = current;
+        }
+    }
+    
+    // Extract snippet around the best occurrence
+    const center = bestOccurrence.index + bestOccurrence.length / 2;
+    const start = Math.max(0, Math.floor(center - maxLength / 2));
+    const end = Math.min(text.length, Math.floor(start + maxLength));
     
     let snippet = text.substring(start, end);
     

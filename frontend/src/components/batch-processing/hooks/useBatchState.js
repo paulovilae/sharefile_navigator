@@ -35,11 +35,31 @@ export const useBatchState = (externalSettings = {}) => {
     // Update settings when external settings change
     useEffect(() => {
         if (externalSettings) {
-            setSettings(prev => ({
-                ...prev,
-                ...externalSettings?.ocrSettings,
-                ...externalSettings?.paginationSettings
-            }));
+            // Use JSON.stringify to do a deep comparison of the settings objects
+            // This prevents unnecessary updates when the objects are equivalent
+            const newOcrSettings = externalSettings?.ocrSettings || {};
+            const newPaginationSettings = externalSettings?.paginationSettings || {};
+            
+            setSettings(prev => {
+                // Only update if there are actual changes
+                const prevOcrKeys = Object.keys(prev).filter(key => key in newOcrSettings);
+                const prevPaginationKeys = Object.keys(prev).filter(key => key in newPaginationSettings);
+                
+                const hasOcrChanges = prevOcrKeys.some(key => prev[key] !== newOcrSettings[key]);
+                const hasPaginationChanges = prevPaginationKeys.some(key => prev[key] !== newPaginationSettings[key]);
+                
+                // If no changes, return the previous state to prevent re-renders
+                if (!hasOcrChanges && !hasPaginationChanges) {
+                    return prev;
+                }
+                
+                // Otherwise, update with the new settings
+                return {
+                    ...prev,
+                    ...newOcrSettings,
+                    ...newPaginationSettings
+                };
+            });
         }
     }, [externalSettings]);
 

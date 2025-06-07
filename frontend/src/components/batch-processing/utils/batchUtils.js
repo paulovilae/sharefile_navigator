@@ -161,7 +161,8 @@ export const startBatchProcessing = async (batchId, files, settings) => {
                 confidenceThreshold: settings.confidenceThreshold || 0.7,
                 enableGpuAcceleration: settings.enableGpuAcceleration !== undefined ? settings.enableGpuAcceleration : true,
                 batchSize: settings.batchSize || 5,
-                autoSave: settings.autoSave !== undefined ? settings.autoSave : true
+                autoSave: settings.autoSave !== undefined ? settings.autoSave : true,
+                reprocess: settings.reprocess !== undefined ? settings.reprocess : true  // Include reprocess flag
             }
         });
         

@@ -12,6 +12,7 @@ from .status_utils import get_ocr_status, get_ocr_text, update_ocr_status
 from .image_utils import serve_temp_image, serve_preloaded_image, serve_image
 from .preprocessing import preprocess
 from .ocr_processing import ocr_images
+from app.utils.gpu_utils import get_gpu_info, initialize_gpu_tracking, get_gpu_usage_stats
 from .batch_processing import (
     start_batch_processing,
     start_folder_batch_processing,
@@ -19,6 +20,8 @@ from .batch_processing import (
     pause_batch_processing,
     resume_batch_processing,
     stop_batch_processing,
+    deprioritize_batch_processing,
+    restore_batch_priority,
     list_batch_jobs,
     cleanup_completed_jobs
 )
@@ -31,6 +34,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["ocr"])
 
 print("OCR.PY LOADED")
+
+# Initialize GPU tracking on startup
+initialize_gpu_tracking()
 
 @router.get('/preload_check/{file_id}', summary="Check if file data is preloaded")
 async def preload_check_endpoint(file_id: str):
@@ -203,6 +209,34 @@ def stop_batch_endpoint(batch_id: str):
     """
     return stop_batch_processing(batch_id)
 
+@router.post('/batch/deprioritize/{batch_id}', summary="Deprioritize batch processing")
+def deprioritize_batch_endpoint(batch_id: str, level: int = 1):
+    """
+    Deprioritize a batch processing job to reduce CPU usage.
+    
+    This endpoint reduces the CPU priority of the batch processing job to prevent
+    system freezing. It applies several CPU throttling techniques:
+    
+    1. Reduces process priority at OS level
+    2. Adds sleep intervals between processing steps
+    3. Limits CPU core usage (at higher throttle levels)
+    
+    Args:
+        batch_id: The ID of the batch to deprioritize
+        level: Throttling level (0=light, 1=medium, 2=heavy)
+    """
+    return deprioritize_batch_processing(batch_id, level)
+
+@router.post('/batch/restore-priority/{batch_id}', summary="Restore normal priority")
+def restore_batch_priority_endpoint(batch_id: str):
+    """
+    Restore normal processing priority for a batch job.
+    
+    This endpoint reverts the changes made by the deprioritize endpoint,
+    restoring normal CPU priority and removing throttling.
+    """
+    return restore_batch_priority(batch_id)
+
 @router.get('/batch/list', summary="List all batch processing jobs")
 def list_batch_jobs_endpoint():
     """
@@ -264,3 +298,22 @@ def cleanup_batch_jobs_endpoint():
     """
     cleanup_completed_jobs()
     return {"message": "Cleanup completed"}
+
+@router.get('/gpu-info', summary="Get GPU information")
+def gpu_info_endpoint():
+    """
+    Get information about available GPUs including:
+    - Whether GPU is available
+    - Number of GPU devices
+    - Device IDs and names
+    - Usage statistics
+    """
+    gpu_info = get_gpu_info()
+    gpu_usage = get_gpu_usage_stats()
+    
+    return {
+        "isAvailable": gpu_info["is_available"],
+        "deviceCount": gpu_info["device_count"],
+        "devices": gpu_info["devices"],
+        "usageStats": gpu_usage
+    }

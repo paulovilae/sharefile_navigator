@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Card,
@@ -14,7 +14,10 @@ import {
   Chip,
   Tooltip,
   CircularProgress,
-  Alert
+  Alert,
+  Popper,
+  Paper,
+  Fade
 } from '@mui/material';
 import {
   ZoomIn as ZoomIcon,
@@ -34,6 +37,14 @@ const ThumbnailViewer = ({ fileId, title, showInfo = true, showPdfActions = true
   const [pdfInfo, setPdfInfo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  
+  // Hover preview state
+  const [hoverPreviewOpen, setHoverPreviewOpen] = useState(false);
+  const [hoverPreviewLoading, setHoverPreviewLoading] = useState(false);
+  const [hoverPreviewUrl, setHoverPreviewUrl] = useState(null);
+  const [hoverPreviewError, setHoverPreviewError] = useState(null);
+  const thumbnailRef = useRef(null);
+  const hoverTimerRef = useRef(null);
 
   // Load thumbnail on component mount
   useEffect(() => {
@@ -119,11 +130,75 @@ const ThumbnailViewer = ({ fileId, title, showInfo = true, showPdfActions = true
       }
     };
   }, [thumbnailUrl]);
+  
+  // Handle hover preview
+  const handleThumbnailMouseEnter = () => {
+    // Use a small delay to prevent flickering on quick mouse movements
+    hoverTimerRef.current = setTimeout(() => {
+      if (!hoverPreviewUrl && !hoverPreviewLoading) {
+        setHoverPreviewLoading(true);
+        setHoverPreviewError(null);
+        
+        // Determine the ID to use for the processed image
+        const processedImageId = fileId;
+        
+        // Fetch the processed image
+        fetch(`http://localhost:8000/api/thumbnails/processed-image/${processedImageId}`)
+          .then(response => {
+            if (!response.ok) {
+              throw new Error(`Failed to load processed image: ${response.status}`);
+            }
+            return response.blob();
+          })
+          .then(blob => {
+            const url = URL.createObjectURL(blob);
+            setHoverPreviewUrl(url);
+            setHoverPreviewOpen(true);
+          })
+          .catch(err => {
+            console.error('Error loading processed image:', err);
+            setHoverPreviewError(err.message);
+          })
+          .finally(() => {
+            setHoverPreviewLoading(false);
+          });
+      } else if (hoverPreviewUrl) {
+        // If we already have the URL, just show the preview
+        setHoverPreviewOpen(true);
+      }
+    }, 300); // 300ms delay
+  };
+  
+  const handleThumbnailMouseLeave = () => {
+    // Clear the timer to prevent unnecessary loading
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+    setHoverPreviewOpen(false);
+  };
+  
+  // Cleanup hover preview URL on unmount
+  useEffect(() => {
+    return () => {
+      if (hoverPreviewUrl) {
+        URL.revokeObjectURL(hoverPreviewUrl);
+      }
+      if (hoverTimerRef.current) {
+        clearTimeout(hoverTimerRef.current);
+      }
+    };
+  }, [hoverPreviewUrl]);
 
   return (
     <>
       <Card sx={{ maxWidth: 200, m: 1 }}>
-        <Box sx={{ position: 'relative' }}>
+        <Box
+          sx={{ position: 'relative' }}
+          ref={thumbnailRef}
+          onMouseEnter={handleThumbnailMouseEnter}
+          onMouseLeave={handleThumbnailMouseLeave}
+        >
           {loading ? (
             <Box
               sx={{
@@ -281,6 +356,61 @@ const ThumbnailViewer = ({ fileId, title, showInfo = true, showPdfActions = true
           </Button>
         </DialogActions>
       </Dialog>
+      
+      {/* Hover Preview Popper */}
+      <Popper
+        open={hoverPreviewOpen}
+        anchorEl={thumbnailRef.current}
+        placement="right-start"
+        transition
+        sx={{ zIndex: 1300 }}
+      >
+        {({ TransitionProps }) => (
+          <Fade {...TransitionProps} timeout={300}>
+            <Paper
+              elevation={8}
+              sx={{
+                p: 1,
+                maxWidth: 500,
+                maxHeight: 600,
+                border: '1px solid',
+                borderColor: 'divider'
+              }}
+            >
+              {hoverPreviewLoading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+                  <CircularProgress size={40} />
+                </Box>
+              ) : hoverPreviewError ? (
+                <Box sx={{ p: 2 }}>
+                  <Typography variant="body2" color="error">
+                    {hoverPreviewError}
+                  </Typography>
+                </Box>
+              ) : hoverPreviewUrl ? (
+                <Box sx={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center'
+                }}>
+                  <img
+                    src={hoverPreviewUrl}
+                    alt={title || `Full image for ${fileId}`}
+                    style={{
+                      maxWidth: '100%',
+                      maxHeight: 550,
+                      objectFit: 'contain'
+                    }}
+                  />
+                  <Typography variant="caption" sx={{ mt: 1 }}>
+                    {title || fileId}
+                  </Typography>
+                </Box>
+              ) : null}
+            </Paper>
+          </Fade>
+        )}
+      </Popper>
     </>
   );
 };

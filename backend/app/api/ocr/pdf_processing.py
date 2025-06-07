@@ -12,8 +12,9 @@ from .models import PdfOcrRequest, get_ocr_language_code
 from .db_utils import get_db_session, get_setting_value, DATABASE_URL
 from app.models import OcrResult
 from app.utils.preload_utils import is_data_preloaded, preload_manager
-from app.utils.gpu_utils import configure_easyocr_gpu
+from app.utils.gpu_utils import configure_easyocr_gpu_with_selection, get_gpu_info, release_gpu
 from app.utils.thumbnail_utils import ThumbnailGenerator
+from app.api.thumbnails.processed_image_utils import store_processed_image
 import easyocr
 import pytesseract
 
@@ -170,6 +171,15 @@ async def pdf_ocr_process(request: PdfOcrRequest, file_id: str = None):
     start_time = time.time()
     logger.info(f"Starting PDF OCR processing for file: {request.filename}")
     
+    # Log memory usage at start
+    try:
+        import psutil
+        process = psutil.Process()
+        memory_info = process.memory_info()
+        logger.info(f"Memory usage before processing {request.filename}: {memory_info.rss / 1024 / 1024:.2f} MB")
+    except ImportError:
+        pass
+    
     try:
         # Decode PDF data
         pdf_bytes = base64.b64decode(request.file_data)
@@ -192,6 +202,10 @@ async def pdf_ocr_process(request: PdfOcrRequest, file_id: str = None):
         # Convert PDF to images and extract embedded text
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
         page_count = len(doc)
+        
+        # Check if PDF is too large (more than 50 pages)
+        if page_count > 50:
+            logger.warning(f"Large PDF detected: {request.filename} with {page_count} pages")
         
         # Variables for thumbnail generation
         first_page_pixmap = None
@@ -293,25 +307,103 @@ async def pdf_ocr_process(request: PdfOcrRequest, file_id: str = None):
                             logger.warning(f"Tesseract failed, falling back to EasyOCR: {tesseract_error}")
                             # Fallback to EasyOCR if Tesseract fails
                             easyocr_lang = 'es' if language_setting == 'es' else 'en'
-                            gpu_enabled = configure_easyocr_gpu(settings.get("enableGpuAcceleration", True))
-                            reader = easyocr.Reader([easyocr_lang], gpu=gpu_enabled)
-                            result = reader.readtext(img_path, detail=0, paragraph=False)
-                            ocr_text = '\n'.join(result)
+                            # Get preferred GPU from settings
+                            preferred_gpu = settings.get("preferredGpu", None)
+                            if preferred_gpu is not None and preferred_gpu != "auto":
+                                try:
+                                    preferred_gpu = int(preferred_gpu)
+                                except (ValueError, TypeError):
+                                    preferred_gpu = None
+                            else:
+                                preferred_gpu = None
+                                
+                            # Configure GPU with selection
+                            gpu_enabled, gpu_id = configure_easyocr_gpu_with_selection(
+                                settings.get("enableGpuAcceleration", True),
+                                preferred_gpu
+                            )
+                            
+                            try:
+                                reader = easyocr.Reader([easyocr_lang], gpu=gpu_enabled)
+                                result = reader.readtext(img_path, detail=0, paragraph=False)
+                                ocr_text = '\n'.join(result)
+                            finally:
+                                # Always release the GPU when done
+                                if gpu_enabled and gpu_id is not None:
+                                    release_gpu(gpu_id)
+                            
+                            # Store GPU usage in page result
+                            gpu_info = get_gpu_info()
+                            page_result["gpuUsed"] = gpu_enabled
+                            page_result["gpuInfo"] = gpu_info
+                            page_result["selectedGpu"] = gpu_id
                     elif ocr_engine == "easyocr":
                         # EasyOCR uses different language codes
                         easyocr_lang = 'es' if language_setting == 'es' else 'en'
-                        gpu_enabled = configure_easyocr_gpu(settings.get("enableGpuAcceleration", True))
-                        reader = easyocr.Reader([easyocr_lang], gpu=gpu_enabled)
-                        result = reader.readtext(img_path, detail=0, paragraph=False)
-                        ocr_text = '\n'.join(result)
+                        # Get preferred GPU from settings
+                        preferred_gpu = settings.get("preferredGpu", None)
+                        if preferred_gpu is not None and preferred_gpu != "auto":
+                            try:
+                                preferred_gpu = int(preferred_gpu)
+                            except (ValueError, TypeError):
+                                preferred_gpu = None
+                        else:
+                            preferred_gpu = None
+                            
+                        # Configure GPU with selection
+                        gpu_enabled, gpu_id = configure_easyocr_gpu_with_selection(
+                            settings.get("enableGpuAcceleration", True),
+                            preferred_gpu
+                        )
+                        
+                        try:
+                            reader = easyocr.Reader([easyocr_lang], gpu=gpu_enabled)
+                            result = reader.readtext(img_path, detail=0, paragraph=False)
+                            ocr_text = '\n'.join(result)
+                        finally:
+                            # Always release the GPU when done
+                            if gpu_enabled and gpu_id is not None:
+                                release_gpu(gpu_id)
+                        
+                        # Store GPU usage in page result
+                        gpu_info = get_gpu_info()
+                        page_result["gpuUsed"] = gpu_enabled
+                        page_result["gpuInfo"] = gpu_info
+                        page_result["selectedGpu"] = gpu_id
                     else:
                         # Default to EasyOCR
                         logger.info(f"Unknown OCR engine '{ocr_engine}', using EasyOCR as default")
                         easyocr_lang = 'es' if language_setting == 'es' else 'en'
-                        gpu_enabled = configure_easyocr_gpu(settings.get("enableGpuAcceleration", True))
-                        reader = easyocr.Reader([easyocr_lang], gpu=gpu_enabled)
-                        result = reader.readtext(img_path, detail=0, paragraph=False)
-                        ocr_text = '\n'.join(result)
+                        # Get preferred GPU from settings
+                        preferred_gpu = settings.get("preferredGpu", None)
+                        if preferred_gpu is not None and preferred_gpu != "auto":
+                            try:
+                                preferred_gpu = int(preferred_gpu)
+                            except (ValueError, TypeError):
+                                preferred_gpu = None
+                        else:
+                            preferred_gpu = None
+                            
+                        # Configure GPU with selection
+                        gpu_enabled, gpu_id = configure_easyocr_gpu_with_selection(
+                            settings.get("enableGpuAcceleration", True),
+                            preferred_gpu
+                        )
+                        
+                        try:
+                            reader = easyocr.Reader([easyocr_lang], gpu=gpu_enabled)
+                            result = reader.readtext(img_path, detail=0, paragraph=False)
+                            ocr_text = '\n'.join(result)
+                        finally:
+                            # Always release the GPU when done
+                            if gpu_enabled and gpu_id is not None:
+                                release_gpu(gpu_id)
+                        
+                        # Store GPU usage in page result
+                        gpu_info = get_gpu_info()
+                        page_result["gpuUsed"] = gpu_enabled
+                        page_result["gpuInfo"] = gpu_info
+                        page_result["selectedGpu"] = gpu_id
                     
                     ocr_word_count = len(ocr_text.split()) if ocr_text.strip() else 0
                     ocr_character_count = len(ocr_text) if ocr_text.strip() else 0
@@ -340,12 +432,27 @@ async def pdf_ocr_process(request: PdfOcrRequest, file_id: str = None):
             results["totalWords"] += page_result["wordCount"]
             results["totalCharacters"] += page_result["characterCount"]
         
+        # Explicitly close and clean up resources
         doc.close()
+        doc = None
+        
+        # Force garbage collection to release memory
+        import gc
+        gc.collect()
         
         # Final results
         results["processingTime"] = int((time.time() - start_time) * 1000)
         results["status"] = "completed"
         results["pageCount"] = page_count
+        
+        # Add GPU usage information
+        gpu_info = get_gpu_info()
+        results["gpuInfo"] = gpu_info
+        results["gpuUsed"] = gpu_info["is_available"]
+        
+        # Add GPU usage statistics
+        from app.utils.gpu_utils import get_gpu_usage_stats
+        results["gpuUsageStats"] = get_gpu_usage_stats()
         
         # Store results in database if file_id is provided
         if file_id:
@@ -389,20 +496,30 @@ async def pdf_ocr_process(request: PdfOcrRequest, file_id: str = None):
                 else:
                     ocr_result.ocr_text = all_text
                 
-                # Store metrics
+                # Store metrics with GPU information
+                gpu_info = get_gpu_info()
+                from app.utils.gpu_utils import get_gpu_usage_stats
+                gpu_usage_stats = get_gpu_usage_stats()
+                
                 ocr_result.metrics = json.dumps({
                     "total_words": results["totalWords"],
                     "total_characters": results["totalCharacters"],
                     "processing_time_ms": results["processingTime"],
                     "page_count": page_count,
-                    "has_embedded_text": results["hasEmbeddedText"]
+                    "has_embedded_text": results["hasEmbeddedText"],
+                    "gpu_used": gpu_info["is_available"],
+                    "gpu_info": {
+                        "device_count": gpu_info["device_count"],
+                        "devices": gpu_info["devices"]
+                    },
+                    "gpu_usage_stats": gpu_usage_stats
                 })
                 
                 db.commit()
                 logger.info(f"Stored OCR results in database for file_id: {file_id} with status: {overall_status}")
                 db.close()
                 
-                # Generate thumbnail during OCR processing
+                # Generate thumbnail and store processed images during OCR processing
                 try:
                     db_path = DATABASE_URL.replace('sqlite:///', '') if DATABASE_URL.startswith('sqlite:///') else 'ocr.db'
                     thumbnail_generator = ThumbnailGenerator(db_path)
@@ -415,13 +532,61 @@ async def pdf_ocr_process(request: PdfOcrRequest, file_id: str = None):
                         logger.info(f"Successfully generated thumbnail for {file_id}")
                     else:
                         logger.warning(f"Failed to generate thumbnail for {file_id}")
+                        
+                    # Store processed images for each page
+                    for page_num in range(page_count):
+                        try:
+                            # Get the image path for this page
+                            img_filename = f"page_{page_num + 1}.{image_format}"
+                            img_path = os.path.join(temp_dir, img_filename)
+                            
+                            # Check if the image file exists
+                            if os.path.exists(img_path):
+                                # Read the image file
+                                with open(img_path, 'rb') as img_file:
+                                    img_data = img_file.read()
+                                
+                                # Store the processed image in the database
+                                page_file_id = f"{file_id}_page_{page_num + 1}"
+                                store_success = store_processed_image(
+                                    file_id=page_file_id,
+                                    image_data=img_data,
+                                    image_format=image_format.upper(),
+                                    source_type=f'pdf-page-{page_num + 1}',
+                                    source_path=img_path
+                                )
+                                
+                                if store_success:
+                                    logger.info(f"Successfully stored processed image for {page_file_id}")
+                                else:
+                                    logger.warning(f"Failed to store processed image for {page_file_id}")
+                        except Exception as img_error:
+                            logger.error(f"Error storing processed image for page {page_num + 1}: {img_error}")
                 except Exception as thumb_error:
-                    logger.error(f"Error generating thumbnail for {file_id}: {thumb_error}")
+                    logger.error(f"Error generating thumbnail or storing processed images: {thumb_error}")
             except Exception as db_error:
                 logger.error(f"Error storing OCR results in database: {db_error}")
                 if 'db' in locals():
                     db.close()
         
+        # Clean up temporary files
+        try:
+            import shutil
+            if os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir)
+                logger.info(f"Cleaned up temporary directory: {temp_dir}")
+        except Exception as cleanup_error:
+            logger.warning(f"Error cleaning up temporary directory: {cleanup_error}")
+        
+        # Log memory usage at end
+        try:
+            import psutil
+            process = psutil.Process()
+            memory_info = process.memory_info()
+            logger.info(f"Memory usage after processing {request.filename}: {memory_info.rss / 1024 / 1024:.2f} MB")
+        except ImportError:
+            pass
+            
         logger.info(f"PDF OCR completed for {request.filename}: {page_count} pages, {results['totalWords']} words")
         return results
         

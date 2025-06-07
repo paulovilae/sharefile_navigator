@@ -8,6 +8,7 @@ import FolderIcon from '@mui/icons-material/Folder';
 import TextFieldsIcon from '@mui/icons-material/TextFields';
 import SearchIcon from '@mui/icons-material/Search';
 import MonitorHeartIcon from '@mui/icons-material/MonitorHeart';
+import MemoryIcon from '@mui/icons-material/Memory';
 import MyLayout from "./admin/MyLayout";
 import { LocalizationList, LocalizationEdit, LocalizationCreate } from './resources/localizations';
 import LocalizationSettings from './pages/LocalizationSettings';
@@ -19,6 +20,7 @@ import SidebarMenuEditor from './admin/SidebarMenuEditor';
 import OcrWorkflow from './components/OcrWorkflow';
 import ImageSearchPage from './components/ImageSearchPage';
 import ProcessHealthMonitor from './components/ProcessHealthMonitor';
+import SystemMonitorPage from './SystemMonitorPage';
 import { Route } from 'react-router-dom';
 
 const themeMap = {
@@ -70,6 +72,7 @@ function LocalizedApp({ selectedLibrary, setSelectedLibrary, currentFolder, setC
         <Route path="/ocr-workflow" element={<OcrWorkflow />} />
         <Route path="/image-search" element={<ImageSearchPage />} />
         <Route path="/process-health" element={<ProcessHealthMonitor />} />
+        <Route path="/system-monitor" element={<SystemMonitorPage />} />
         <Route path="/settings/localizations" element={<LocalizationSettings />} />
         <Route path="/settings" element={<SettingsPage />} />
       </CustomRoutes>
@@ -100,6 +103,12 @@ function LocalizedApp({ selectedLibrary, setSelectedLibrary, currentFolder, setC
         options={{ label: translate('nav.menu.process_health') }}
         list={ProcessHealthMonitor}
         icon={MonitorHeartIcon}
+      />
+      <Resource
+        name="system-monitor"
+        options={{ label: translate('nav.menu.system_monitor') }}
+        list={SystemMonitorPage}
+        icon={MemoryIcon}
       />
       <Resource
         name="workflow-engine"

@@ -2,7 +2,7 @@
  * Refactored Paginated Batch Processor Component
  * Handles large file sets by processing them in chunks
  */
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import axios from 'axios';
 import {
     Box,
@@ -107,36 +107,132 @@ const PaginatedBatchProcessor = ({
         onConfirm: null
     });
 
+    // Reference for cleanup timeout
+    const cleanupTimeoutRef = useRef(null);
+
+    // Cleanup function to clear batch data after completion
+    const cleanupBatchData = useCallback(() => {
+        // Clear any existing timeout
+        if (cleanupTimeoutRef.current) {
+            clearTimeout(cleanupTimeoutRef.current);
+            cleanupTimeoutRef.current = null;
+        }
+        
+        // Set a new timeout to clear the data after a delay
+        cleanupTimeoutRef.current = setTimeout(() => {
+            console.log('[PaginatedBatchProcessor] Cleaning up batch data after completion');
+            
+            // Batch state updates together to prevent cascading renders
+            const batchUpdate = () => {
+                // Clear current batch status but keep results for viewing
+                setCurrentBatch(prev => ({
+                    ...prev,
+                    isProcessing: false,
+                    // Keep the status object but mark it as cleaned up
+                    status: prev.status ? {
+                        ...prev.status,
+                        _cleanedUp: true,
+                        // Keep only essential data, remove large objects
+                        logs: []
+                    } : null
+                }));
+                
+                // Reset pagination state
+                setPaginationState(prev => ({
+                    ...prev,
+                    isActive: false
+                }));
+            };
+            
+            // Execute the batch update
+            batchUpdate();
+            
+            cleanupTimeoutRef.current = null;
+        }, 2000); // 2 second delay
+        
+        return () => {
+            if (cleanupTimeoutRef.current) {
+                clearTimeout(cleanupTimeoutRef.current);
+                cleanupTimeoutRef.current = null;
+            }
+        };
+    }, []); // Remove dependencies to prevent re-creation on every render
+    
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            if (cleanupTimeoutRef.current) {
+                clearTimeout(cleanupTimeoutRef.current);
+            }
+        };
+    }, []);
+
     // Polling hook for current chunk
     const { startPolling, stopPolling } = useBatchPolling(
         currentBatch.batchId,
         (status) => {
+            // Prevent state updates if the component is unmounting or the batch has been cleaned up
+            if (status._cleanedUp) {
+                return;
+            }
+            
+            // Update batch status first
             setCurrentBatch(prev => ({
                 ...prev,
                 status: status
             }));
             
             // Update pagination state with real progress from backend
-            setPaginationState(prev => ({
-                ...prev,
-                processedFiles: status.processed_count || 0,
-                failedFiles: status.failed_count || 0,
-                skippedFiles: status.skipped_count || 0,
-                totalFiles: status.total_files || prev.totalFiles
-            }));
+            // Make sure totalFiles is set first, then calculate processed files
+            // to avoid showing more processed files than total files
+            setPaginationState(prev => {
+                // Get counts from status
+                const processedCount = status.processed_count || 0;
+                const failedCount = status.failed_count || 0;
+                const skippedCount = status.skipped_count || 0;
+                
+                // Calculate total processed files
+                const totalProcessed = processedCount + failedCount + skippedCount;
+                
+                // Ensure totalFiles is at least as large as the total processed count
+                // This fixes the "3 of 2 files" inconsistency when reprocessing files
+                let totalFiles = status.total_files || prev.totalFiles;
+                if (totalProcessed > totalFiles) {
+                    console.log(`[PaginatedBatchProcessor] Adjusting totalFiles from ${totalFiles} to ${totalProcessed} to match processed counts`);
+                    totalFiles = totalProcessed;
+                }
+                
+                return {
+                    ...prev,
+                    totalFiles,
+                    processedFiles: processedCount,
+                    failedFiles: failedCount,
+                    skippedFiles: skippedCount
+                };
+            });
             
             if (onProcessingUpdate) {
                 onProcessingUpdate(status);
             }
             
-            // Handle chunk completion
-            if (['completed', 'error', 'cancelled'].includes(status.status)) {
+            // Handle chunk completion - but only once
+            if (['completed', 'error', 'cancelled'].includes(status.status) && !status._processed) {
+                // Mark the status as processed to prevent duplicate handling
+                status._processed = true;
+                
+                // Update processing state in a single batch
                 setCurrentBatch(prev => ({
                     ...prev,
                     isProcessing: false
                 }));
                 
+                // Handle chunk completion
                 handleChunkCompletion(currentBatch.batchId, status);
+                
+                // Schedule cleanup after completion - but only if not already scheduled
+                if (!cleanupTimeoutRef.current) {
+                    cleanupBatchData();
+                }
             }
         },
         setError
@@ -177,18 +273,35 @@ const PaginatedBatchProcessor = ({
                         status: batchStatus
                     });
                     
-                    setPaginationState(prev => ({
-                        ...prev,
-                        isActive: ['processing', 'queued'].includes(batchStatus.status),
-                        totalFiles: batchStatus.total_files || 0,
-                        processedFiles: batchStatus.processed_count || 0,
-                        failedFiles: batchStatus.failed_count || 0,
-                        skippedFiles: batchStatus.skipped_count || 0,
-                        currentChunkIndex: 0,
-                        totalChunks: 1,
-                        processedChunks: 1,
-                        isExistingBatch: true
-                    }));
+                    setPaginationState(prev => {
+                        // Get counts from status
+                        const processedCount = batchStatus.processed_count || 0;
+                        const failedCount = batchStatus.failed_count || 0;
+                        const skippedCount = batchStatus.skipped_count || 0;
+                        
+                        // Calculate total processed files
+                        const totalProcessed = processedCount + failedCount + skippedCount;
+                        
+                        // Ensure totalFiles is at least as large as the total processed count
+                        let totalFiles = batchStatus.total_files || 0;
+                        if (totalProcessed > totalFiles) {
+                            console.log(`[checkExistingBatches] Adjusting totalFiles from ${totalFiles} to ${totalProcessed} to match processed counts`);
+                            totalFiles = totalProcessed;
+                        }
+                        
+                        return {
+                            ...prev,
+                            isActive: ['processing', 'queued'].includes(batchStatus.status),
+                            totalFiles: totalFiles,
+                            processedFiles: processedCount,
+                            failedFiles: failedCount,
+                            skippedFiles: skippedCount,
+                            currentChunkIndex: 0,
+                            totalChunks: 1,
+                            processedChunks: 1,
+                            isExistingBatch: true
+                        };
+                    });
                     
                     // Start polling for this existing batch
                     if (['processing', 'queued'].includes(batchStatus.status)) {
@@ -209,7 +322,15 @@ const PaginatedBatchProcessor = ({
         };
         
         checkExistingBatches();
-    }, []); // Only run once on component mount
+        
+        // Return cleanup function
+        return () => {
+            stopPolling();
+            if (cleanupTimeoutRef.current) {
+                clearTimeout(cleanupTimeoutRef.current);
+            }
+        };
+    }, [stopPolling]); // Only run once on component mount
 
     // Start processing handler
     const handleStartProcessing = useCallback(async () => {
@@ -524,7 +645,13 @@ const PaginatedBatchProcessor = ({
                     </AccordionSummary>
                     <AccordionDetails>
                         <Box sx={{ maxHeight: '500px', overflow: 'auto' }}>
-                            <PdfResultsDisplay results={currentBatch.status.results} />
+                            {/* Transform the results data to match what PdfResultsDisplay expects */}
+                            <PdfResultsDisplay
+                                results={currentBatch.status.results
+                                    .filter(item => item.result && typeof item.result === 'object')
+                                    .map(item => item.result)
+                                }
+                            />
                         </Box>
                     </AccordionDetails>
                 </Accordion>

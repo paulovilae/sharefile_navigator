@@ -61,7 +61,16 @@ const BatchStatusDisplay = ({
     const safeProcessedCount = batchStatus.processed_count || 0;
     const safeFailedCount = batchStatus.failed_count || 0;
     const safeSkippedCount = batchStatus.skipped_count || 0;
-    const safeTotalFiles = batchStatus.total_files || 0;
+    
+    // Calculate total processed files
+    const totalProcessed = safeProcessedCount + safeFailedCount + safeSkippedCount;
+    
+    // Ensure totalFiles is at least as large as the total processed count
+    let safeTotalFiles = batchStatus.total_files || 0;
+    if (totalProcessed > safeTotalFiles) {
+        console.log(`[BatchStatusDisplay] Adjusting totalFiles from ${safeTotalFiles} to ${totalProcessed} to match processed counts`);
+        safeTotalFiles = totalProcessed;
+    }
     const safeProgressPercentage = batchStatus.progress_percentage || 0;
     const safeCurrentFileIndex = batchStatus.current_file_index || 0;
     const safeCurrentFile = batchStatus.current_file || null;

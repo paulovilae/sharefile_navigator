@@ -224,26 +224,65 @@ export const usePaginatedBatch = (selectedFiles, settings, onProcessingUpdate) =
 
     // Handle chunk completion
     const handleChunkCompletion = useCallback((batchId, status) => {
+        // Skip if this batch has already been processed
+        if (status._chunkProcessed) {
+            return;
+        }
+        
+        // Mark as processed to prevent duplicate handling
+        status._chunkProcessed = true;
+        
         // Update chunk history
-        setChunkHistory(prev => prev.map(chunk => 
-            chunk.batchId === batchId 
+        setChunkHistory(prev => prev.map(chunk =>
+            chunk.batchId === batchId
                 ? { ...chunk, status: status.status, endTime: Date.now() }
                 : chunk
         ));
         
-        // Update pagination state
-        setPaginationState(prev => ({
-            ...prev,
-            processedFiles: prev.processedFiles + (status.processed_count || 0),
-            failedFiles: prev.failedFiles + (status.failed_count || 0),
-            skippedFiles: prev.skippedFiles + (status.skipped_count || 0)
-        }));
+        // Update pagination state - use the counts from status directly
+        // instead of adding to existing counts to avoid exceeding totalFiles
+        setPaginationState(prev => {
+            // Get counts from status
+            const processedCount = status.processed_count || 0;
+            const failedCount = status.failed_count || 0;
+            const skippedCount = status.skipped_count || 0;
+            
+            // Calculate total processed files
+            const totalProcessed = processedCount + failedCount + skippedCount;
+            
+            // When reprocessing files, we want to keep the original totalFiles count
+            // to avoid showing more files than are actually being processed
+            let totalFiles = prev.totalFiles;
+            if (totalProcessed > totalFiles) {
+                console.log(`[handleChunkCompletion] Processed count (${totalProcessed}) exceeds total_files (${totalFiles}), but keeping original count to avoid double-counting`);
+                
+                // Keep the original totalFiles count
+                return {
+                    ...prev,
+                    processedFiles: processedCount,
+                    failedFiles: failedCount,
+                    skippedFiles: skippedCount
+                };
+            }
+            
+            return {
+                ...prev,
+                processedFiles: processedCount,
+                failedFiles: failedCount,
+                skippedFiles: skippedCount
+            };
+        });
         
         // If this chunk completed successfully, process next chunk
-        if (status.status === 'completed' && paginationState.isActive) {
-            processNextChunk();
+        // But only if we're still active and not already processing the next chunk
+        if (status.status === 'completed' && paginationState.isActive &&
+            paginationState.currentChunk < paginationState.totalChunks - 1) {
+            // Use setTimeout to break the synchronous state update chain
+            setTimeout(() => {
+                processNextChunk();
+            }, 0);
         }
-    }, [paginationState.isActive, processNextChunk]);
+    }, [paginationState.isActive, paginationState.currentChunk, paginationState.totalChunks, processNextChunk]);
 
     return {
         paginationState,

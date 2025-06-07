@@ -9,7 +9,7 @@ import {
     useTranslate
 } from 'react-admin';
 import { Typography, Box, IconButton, Tooltip, Menu, MenuItem, ListItemIcon, ListItemText } from '@mui/material';
-import { AccountCircle, Person, Settings, ExitToApp } from '@mui/icons-material';
+import { AccountCircle, Person, Settings, ExitToApp, Speed } from '@mui/icons-material';
 import { useTheme } from '@mui/material/styles';
 
 const CustomAppBar = React.memo((props) => {
@@ -45,6 +45,19 @@ const CustomAppBar = React.memo((props) => {
         handleUserMenuClose();
     };
     
+    const handleOpenSystemMonitor = () => {
+        // Open system monitor in a popup window
+        const width = 1200;
+        const height = 800;
+        const left = (window.screen.width - width) / 2;
+        const top = (window.screen.height - height) / 2;
+        
+        window.open(
+            '/system-monitor.html',
+            'SystemMonitor',
+            `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes,status=yes`
+        );
+    };
     
     return (
         <RaAppBar
@@ -52,6 +65,20 @@ const CustomAppBar = React.memo((props) => {
             toolbar={
                 <>
                     <LoadingIndicator />
+                    <Tooltip title="System Monitor">
+                        <IconButton
+                            color="inherit"
+                            onClick={handleOpenSystemMonitor}
+                            sx={{
+                                color: theme.palette.primary.contrastText,
+                                '&:hover': {
+                                    backgroundColor: 'rgba(255, 255, 255, 0.1)'
+                                }
+                            }}
+                        >
+                            <Speed />
+                        </IconButton>
+                    </Tooltip>
                     <ToggleThemeButton />
                     <LocalesMenuButton />
                 </>

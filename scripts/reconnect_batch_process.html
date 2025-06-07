@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reconnect to Batch Process</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        .card {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .code {
+            background-color: #f1f1f1;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            overflow-x: auto;
+        }
+        .warning {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 10px 15px;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Reconnect to Running Batch Process</h1>
+    
+    <div class="card">
+        <h2>Problem</h2>
+        <p>The frontend was restarted while a batch process was running in the backend. The batch process is still running, but the frontend lost its connection to it.</p>
+        
+        <div class="warning">
+            <p><strong>Note:</strong> The batch processing system uses a PersistentTaskQueue that's designed to survive server restarts, but the frontend needs to be manually redirected to the correct workflow step.</p>
+        </div>
+    </div>
+    
+    <div class="card">
+        <h2>Solution</h2>
+        <p>Click the button below to navigate directly to the PDF Preprocessing step where the batch processing status is displayed:</p>
+        
+        <button onclick="window.location.href='http://localhost:5173/ocr-workflow?step=1&stepId=pdf-preprocessing'">
+            Reconnect to Batch Process
+        </button>
+        
+        <p>Or manually navigate to this URL:</p>
+        <div class="code">http://localhost:5173/ocr-workflow?step=1&stepId=pdf-preprocessing</div>
+    </div>
+    
+    <div class="card">
+        <h2>Alternative: Check Batch Status via API</h2>
+        <p>You can also check if there are active batch processes by running this command in your terminal:</p>
+        
+        <div class="code">curl -s http://localhost:5173/api/ocr/batch/list | python -m json.tool</div>
+        
+        <p>This will show you all active batch processes and their status.</p>
+    </div>
+    
+    <div class="card">
+        <h2>Clear Cache (If Needed)</h2>
+        <p>If you're still having issues, you can try clearing the cache by running this script in your browser console:</p>
+        
+        <button onclick="clearCache()">Clear Cache</button>
+        
+        <script>
+            function clearCache() {
+                console.log('🔄 Forcing OCR status refresh...');
+                
+                // Clear all status-related cache entries
+                let clearedCount = 0;
+                Object.keys(localStorage).forEach(key => {
+                    if (key.includes('status') || key.includes('statuses')) {
+                        localStorage.removeItem(key);
+                        clearedCount++;
+                        console.log(`🗑️ Cleared: ${key}`);
+                    }
+                });
+                
+                console.log(`📊 Total cache entries cleared: ${clearedCount}`);
+                
+                // Trigger a global refresh event
+                console.log('📡 Triggering global refresh...');
+                window.dispatchEvent(new Event('globalRefresh'));
+                
+                console.log('✅ Cache cleared and refresh triggered!');
+                alert('Cache cleared! The page will now reload.');
+                
+                // Reload the page
+                setTimeout(() => {
+                    window.location.href = 'http://localhost:5173/ocr-workflow?step=1&stepId=pdf-preprocessing';
+                }, 1000);
+            }
+        </script>
+    </div>
+</body>
+</html>

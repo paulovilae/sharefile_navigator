@@ -40,6 +40,8 @@ class BatchProcessor:
         self.status = "queued"  # queued, processing, paused, completed, error, cancelled
         self.is_paused = False
         self.should_stop = False
+        self.is_deprioritized = False
+        self.cpu_throttle_level = 0  # 0=normal, 1=light throttling, 2=heavy throttling
         self.results = []
         self.errors = []
         self.processing_stats = {
@@ -116,10 +118,12 @@ class BatchProcessor:
                 OcrResult.status.in_(['completed', 'ocr_processed', 'text_extracted'])
             ).all()
             
+            # For reprocessing, we want to track existing files but not count them in our counters
+            # We'll just load their statistics for reference
             total_pages = 0
             total_words = 0
             total_characters = 0
-            processed_files = 0
+            existing_processed_files = 0  # Renamed to clarify these are existing files
             
             for result in existing_results:
                 if result.metrics:
@@ -138,7 +142,7 @@ class BatchProcessor:
                         total_pages += pages
                         total_words += words
                         total_characters += chars
-                        processed_files += 1
+                        existing_processed_files += 1
                         
                         logger.debug(f"[{self.batch_id}] Loaded stats for {result.file_id}: {pages} pages, {words} words")
                         
@@ -151,11 +155,26 @@ class BatchProcessor:
             self.processing_stats["total_words"] = total_words
             self.processing_stats["total_characters"] = total_characters
             
-            # Update processed count to reflect already processed files
-            self.processed_count = processed_files
+            # When reprocessing, we don't want to count already processed files in our counters
+            # We'll start with 0 and increment as we process each file
+            logger.info(f"[{self.batch_id}] Found {existing_processed_files} previously processed files, but starting counters at 0 for reprocessing")
+            
+            # Reset counters to 0 for reprocessing
+            self.processed_count = 0
+            self.failed_count = 0
+            self.skipped_count = 0
+            
+            # When reprocessing files, we don't want to adjust total_files to include already processed files
+            # This would cause double-counting in the UI (showing 4 files when reprocessing 2 files)
+            # Instead, we'll keep the original total_files count which represents the actual files to process
+            total_processed = self.processed_count + self.failed_count + self.skipped_count
+            if total_processed > self.total_files:
+                logger.info(f"[{self.batch_id}] Found {total_processed} previously processed files, but keeping total_files at {self.total_files} to avoid double-counting during reprocessing")
             
             logger.info(f"[{self.batch_id}] Loaded existing statistics: {processed_files} files, "
                        f"{total_pages} pages, {total_words} words, {total_characters} characters")
+            logger.info(f"[{self.batch_id}] TRACKING DEBUG: total_files={self.total_files}, processed_count={self.processed_count}, "
+                       f"failed_count={self.failed_count}, skipped_count={self.skipped_count}")
             
             db.close()
             
@@ -242,10 +261,18 @@ class BatchProcessor:
         elif self.processing_stats.get("average_processing_time", 0) > 0:
             avg_processing_time = self.processing_stats["average_processing_time"]
         
+        # When reprocessing files, we want to keep the original total_files count
+        # to avoid showing more files than are actually being processed
+        total_processed = self.processed_count + self.failed_count + self.skipped_count
+        if total_processed > self.total_files:
+            logger.info(f"[{self.batch_id}] get_status_dict: Processed count ({total_processed}) exceeds total_files ({self.total_files}), but keeping original count to avoid double-counting")
+            
         status_dict = {
             "batch_id": self.batch_id,
             "status": self.status,
             "is_paused": self.is_paused,
+            "is_deprioritized": self.is_deprioritized,
+            "cpu_throttle_level": self.cpu_throttle_level,
             "total_files": self.total_files,
             "processed_count": self.processed_count,
             "failed_count": self.failed_count,
@@ -285,6 +312,9 @@ class BatchProcessor:
         logger.info(f"[{self.batch_id}] get_status_dict: status={self.status}, processed={self.processed_count}/{self.total_files}, "
                    f"estimated_time={estimated_time}, avg_time={avg_processing_time:.1f}, "
                    f"logs_count={len(logs_list)}, current_file={current_file_name}")
+        logger.info(f"[{self.batch_id}] TRACKING DEBUG: total_files={self.total_files}, processed_count={self.processed_count}, "
+                   f"failed_count={self.failed_count}, skipped_count={self.skipped_count}, "
+                   f"total={self.processed_count + self.failed_count + self.skipped_count}")
         logger.info(f"[{self.batch_id}] get_status_dict: stats - pages={self.processing_stats.get('total_pages', 0)}, "
                    f"words={self.processing_stats.get('total_words', 0)}, chars={self.processing_stats.get('total_characters', 0)}")
         
@@ -292,6 +322,9 @@ class BatchProcessor:
 
     async def process_single_file(self, file_info: Dict, db: Session) -> Dict[str, Any]:
         """Process a single file and return result"""
+        file_start_time = time.time()
+        file_timeout = 600  # 10 minutes timeout per file
+        
         try:
             # Check if processing should stop before starting file processing
             if self.should_stop:
@@ -303,14 +336,27 @@ class BatchProcessor:
                 }
             
             # Yield control before starting file processing
-            await asyncio.sleep(0.01)
+            await asyncio.sleep(0.1)
+            
+            # Log memory usage before processing file
+            try:
+                import psutil
+                process = psutil.Process()
+                memory_info = process.memory_info()
+                logger.info(f"[{self.batch_id}] Before processing file {file_info['name']}: Memory usage: {memory_info.rss / 1024 / 1024:.2f} MB")
+            except ImportError:
+                pass
             
             # Ensure current_file is set (should already be set in start_processing)
             self.current_file = file_info
             self.add_log(f"Processing file {self.current_file_index + 1}/{self.total_files}: {file_info['name']}")
             
-            # Check if file is already processed
-            if 'item_id' in file_info:
+            # During reprocessing, we want to process all files regardless of whether they've been processed before
+            # We'll check if this is a reprocessing batch by looking at the settings
+            is_reprocessing = self.settings.get('reprocess', False)
+            
+            # Only skip already processed files if we're not explicitly reprocessing
+            if not is_reprocessing and 'item_id' in file_info:
                 from app.models import OcrResult
                 existing_result = db.query(OcrResult).filter(OcrResult.file_id == file_info['item_id']).first()
                 if existing_result and existing_result.status in ['completed', 'success']:
@@ -326,7 +372,29 @@ class BatchProcessor:
                     
                     return result_info
             
-            file_start_time = time.time()
+            # If we're reprocessing, log that we're reprocessing this file
+            if is_reprocessing and 'item_id' in file_info:
+                from app.models import OcrResult
+                existing_result = db.query(OcrResult).filter(OcrResult.file_id == file_info['item_id']).first()
+                if existing_result and existing_result.status in ['completed', 'success']:
+                    self.add_log(f"Reprocessing previously processed file: {file_info['name']}", "info")
+            
+            # Create a task with timeout
+            try:
+                # Set up a timeout for this file processing
+                processing_task = asyncio.create_task(self._process_file_with_timeout(file_info, db))
+                result_info = await asyncio.wait_for(processing_task, timeout=file_timeout)
+                return result_info
+            except asyncio.TimeoutError:
+                self.failed_count += 1
+                error_info = {
+                    "file": file_info,
+                    "error": f"Processing timed out after {file_timeout} seconds",
+                    "status": "error"
+                }
+                self.errors.append(error_info)
+                self.add_log(f"Timed out processing: {file_info['name']} after {file_timeout} seconds", "error")
+                return error_info
             
             # Check again if processing should stop before downloading/processing
             if self.should_stop:
@@ -435,7 +503,160 @@ class BatchProcessor:
             }
             self.errors.append(error_info)
             self.add_log(f"Failed to process: {file_info['name']} - {str(e)}", "error")
+            
+            # Log memory usage after error
+            try:
+                import psutil
+                process = psutil.Process()
+                memory_info = process.memory_info()
+                logger.info(f"[{self.batch_id}] After error processing file {file_info['name']}: Memory usage: {memory_info.rss / 1024 / 1024:.2f} MB")
+            except ImportError:
+                pass
+                
             return error_info
+            
+    async def _process_file_with_timeout(self, file_info: Dict, db: Session) -> Dict[str, Any]:
+        """Internal method to process a file with timeout support"""
+        file_start_time = time.time()
+        
+        # Ensure current_file is set (should already be set in start_processing)
+        self.current_file = file_info
+        self.add_log(f"Processing file {self.current_file_index + 1}/{self.total_files}: {file_info['name']}")
+        
+        # During reprocessing, we want to process all files regardless of whether they've been processed before
+        # We'll check if this is a reprocessing batch by looking at the settings
+        is_reprocessing = self.settings.get('reprocess', False)
+        
+        # Only skip already processed files if we're not explicitly reprocessing
+        if not is_reprocessing and 'item_id' in file_info:
+            from app.models import OcrResult
+            existing_result = db.query(OcrResult).filter(OcrResult.file_id == file_info['item_id']).first()
+            if existing_result and existing_result.status in ['completed', 'success']:
+                self.skipped_count += 1
+                self.add_log(f"Skipped already processed file: {file_info['name']}", "info")
+                
+                result_info = {
+                    "file": file_info,
+                    "result": {"message": "Already processed", "status": existing_result.status},
+                    "processing_time": 0,
+                    "status": "skipped"
+                }
+                
+                return result_info
+        
+        # If we're reprocessing, log that we're reprocessing this file
+        if is_reprocessing and 'item_id' in file_info:
+            from app.models import OcrResult
+            existing_result = db.query(OcrResult).filter(OcrResult.file_id == file_info['item_id']).first()
+            if existing_result and existing_result.status in ['completed', 'success']:
+                self.add_log(f"Reprocessing previously processed file: {file_info['name']}", "info")
+        
+        # Check again if processing should stop before downloading/processing
+        if self.should_stop:
+            self.add_log("Processing stopped during file preparation", "warning")
+            return {
+                "file": file_info,
+                "error": "Processing stopped by user",
+                "status": "cancelled"
+            }
+        
+        # Download file from SharePoint if needed
+        if 'drive_id' in file_info and 'item_id' in file_info:
+            # Yield control before downloading
+            await asyncio.sleep(0.1)
+            
+            # This is a SharePoint file - download directly using SharePoint API
+            file_content = await self.download_sharepoint_file_direct(
+                file_info['drive_id'],
+                file_info['item_id']
+            )
+            
+            if file_content is None:
+                raise Exception(f"Failed to download file from SharePoint: {file_info['name']}")
+            
+            # Yield control after download, before processing
+            await asyncio.sleep(0.1)
+            
+            # Convert to base64
+            import base64
+            file_data_base64 = base64.b64encode(file_content).decode('utf-8')
+            
+            # Create PdfOcrRequest
+            request = PdfOcrRequest(
+                file_data=file_data_base64,
+                filename=file_info['name'],
+                settings=self.settings
+            )
+            
+            # Yield control before OCR processing (most CPU intensive part)
+            await asyncio.sleep(0.1)
+            
+            # Process with OCR
+            result = await pdf_ocr_process(request, file_info.get('item_id'))
+            
+        else:
+            # This is an uploaded file (base64 data should be in file_info)
+            request = PdfOcrRequest(
+                file_data=file_info['file_data'],
+                filename=file_info['name'],
+                settings=self.settings
+            )
+            
+            # Yield control before OCR processing
+            await asyncio.sleep(0.1)
+            
+            result = await pdf_ocr_process(request, file_info.get('file_id'))
+        
+        processing_time = time.time() - file_start_time
+        
+        # Update statistics
+        pages_added = result.get("pageCount", 0)
+        words_added = result.get("totalWords", 0)
+        chars_added = result.get("totalCharacters", 0)
+        
+        # Debug: Log what we got from OCR result
+        logger.info(f"[{self.batch_id}] OCR result for {file_info['name']}: pageCount={pages_added}, totalWords={words_added}, totalCharacters={chars_added}")
+        logger.info(f"[{self.batch_id}] Full OCR result keys: {list(result.keys()) if isinstance(result, dict) else 'Not a dict'}")
+        
+        # Update stats
+        self.processing_stats["total_pages"] += pages_added
+        self.processing_stats["total_words"] += words_added
+        self.processing_stats["total_characters"] += chars_added
+        self.processing_stats["total_processing_time"] += processing_time
+        
+        self.processed_count += 1
+        
+        # Calculate average processing time
+        if self.processed_count > 0:
+            self.processing_stats["average_processing_time"] = (
+                self.processing_stats["total_processing_time"] / self.processed_count
+            )
+            logger.info(f"[{self.batch_id}] File processed: {file_info['name']} - Pages: {pages_added}, Words: {words_added}, Chars: {chars_added}")
+            logger.info(f"[{self.batch_id}] Updated stats - Total Pages: {self.processing_stats['total_pages']}, Total Words: {self.processing_stats['total_words']}, Avg Time: {self.processing_stats['average_processing_time']:.1f}s")
+            logger.info(f"[{self.batch_id}] Processing time for this file: {processing_time:.1f}s, Total processing time: {self.processing_stats['total_processing_time']:.1f}s")
+        else:
+            logger.warning(f"[{self.batch_id}] Cannot calculate avg_processing_time: processed_count is 0")
+        
+        # Log memory usage after processing
+        try:
+            import psutil
+            process = psutil.Process()
+            memory_info = process.memory_info()
+            logger.info(f"[{self.batch_id}] After processing file {file_info['name']}: Memory usage: {memory_info.rss / 1024 / 1024:.2f} MB")
+        except ImportError:
+            pass
+            
+        result_info = {
+            "file": file_info,
+            "result": result,
+            "processing_time": processing_time,
+            "status": "success"
+        }
+        
+        self.results.append(result_info)
+        self.add_log(f"Successfully processed: {file_info['name']} ({result.get('pageCount', 0)} pages)", "success")
+        
+        return result_info
 
     async def start_processing(self):
         """Start the batch processing"""
@@ -474,6 +695,38 @@ class BatchProcessor:
                         self.add_log("Processing stopped by user", "warning")
                         break
                     
+                    # Apply CPU throttling if deprioritized
+                    if self.is_deprioritized:
+                        # Apply process priority reduction
+                        try:
+                            import psutil
+                            process = psutil.Process()
+                            
+                            # Set process priority to below normal
+                            if hasattr(psutil, 'BELOW_NORMAL_PRIORITY_CLASS'):
+                                process.nice(psutil.BELOW_NORMAL_PRIORITY_CLASS)
+                            else:
+                                # On Unix systems
+                                process.nice(10)  # Higher nice value = lower priority
+                                
+                            # Apply CPU affinity if throttle level is high
+                            if self.cpu_throttle_level >= 2 and hasattr(process, 'cpu_affinity'):
+                                # Get available CPUs
+                                all_cpus = process.cpu_affinity()
+                                if len(all_cpus) > 1:
+                                    # Use only half of available CPUs (or at least 1)
+                                    limited_cpus = all_cpus[:max(1, len(all_cpus) // 2)]
+                                    process.cpu_affinity(limited_cpus)
+                                    self.add_log(f"Limited CPU affinity to {len(limited_cpus)} cores", "info")
+                                    
+                            self.add_log("Applied CPU deprioritization", "info")
+                        except Exception as e:
+                            logger.warning(f"Failed to set process priority: {e}")
+                            
+                        # Add additional sleep based on throttle level
+                        throttle_sleep = 0.5 * (self.cpu_throttle_level + 1)
+                        await asyncio.sleep(throttle_sleep)
+                    
                     # Update current file tracking BEFORE processing
                     self.current_file_index = i
                     self.current_file = file_info
@@ -486,12 +739,34 @@ class BatchProcessor:
                     
                     # Yield control to allow other requests to be processed
                     # This prevents the backend from becoming non-responsive
-                    await asyncio.sleep(0.1)  # Reduced from 0.5 to 0.1 for faster processing
+                    base_sleep = 0.5  # Base sleep time
                     
-                    # Every 5 files, yield for a longer period to ensure responsiveness
-                    if (i + 1) % 5 == 0:
+                    # Adjust sleep time based on throttle level
+                    if self.is_deprioritized:
+                        sleep_time = base_sleep * (self.cpu_throttle_level + 1)
+                    else:
+                        sleep_time = base_sleep
+                        
+                    await asyncio.sleep(sleep_time)
+                    
+                    # Every 3 files, yield for a longer period to ensure responsiveness
+                    if (i + 1) % 3 == 0:
                         logger.info(f"[{self.batch_id}] Processed {i + 1} files, yielding control for responsiveness")
-                        await asyncio.sleep(0.5)  # Longer yield every 5 files
+                        
+                        # Longer yield every 3 files, adjusted for throttle level
+                        if self.is_deprioritized:
+                            await asyncio.sleep(1.0 * (self.cpu_throttle_level + 1))
+                        else:
+                            await asyncio.sleep(1.0)
+                        
+                        # Add memory usage logging
+                        try:
+                            import psutil
+                            process = psutil.Process()
+                            memory_info = process.memory_info()
+                            logger.info(f"[{self.batch_id}] Memory usage: {memory_info.rss / 1024 / 1024:.2f} MB")
+                        except ImportError:
+                            logger.info(f"[{self.batch_id}] psutil not available for memory tracking")
                 
                 if not self.should_stop:
                     self.status = "completed"
@@ -518,6 +793,64 @@ class BatchProcessor:
         self.is_paused = False
         self.add_log("Processing resumed", "info")
 
+    def deprioritize(self, level=1):
+        """Deprioritize the processing to reduce CPU usage"""
+        self.is_deprioritized = True
+        self.cpu_throttle_level = min(2, max(0, level))  # Ensure level is between 0-2
+        
+        level_names = {0: "light", 1: "medium", 2: "heavy"}
+        level_name = level_names.get(self.cpu_throttle_level, "custom")
+        
+        self.add_log(f"Processing deprioritized ({level_name} throttling)", "info")
+        
+        # Try to immediately reduce process priority
+        try:
+            import psutil
+            process = psutil.Process()
+            
+            # Set process priority to below normal
+            if hasattr(psutil, 'BELOW_NORMAL_PRIORITY_CLASS'):
+                process.nice(psutil.BELOW_NORMAL_PRIORITY_CLASS)
+            else:
+                # On Unix systems
+                process.nice(10)  # Higher nice value = lower priority
+                
+            logger.info(f"[{self.batch_id}] Process priority reduced")
+        except Exception as e:
+            logger.warning(f"Failed to set process priority: {e}")
+            
+        return self.get_status_dict()
+    
+    def restore_priority(self):
+        """Restore normal processing priority"""
+        self.is_deprioritized = False
+        self.cpu_throttle_level = 0
+        
+        # Try to restore process priority
+        try:
+            import psutil
+            process = psutil.Process()
+            
+            # Set process priority back to normal
+            if hasattr(psutil, 'NORMAL_PRIORITY_CLASS'):
+                process.nice(psutil.NORMAL_PRIORITY_CLASS)
+            else:
+                # On Unix systems
+                process.nice(0)  # Normal priority
+                
+            # Restore CPU affinity if it was limited
+            if hasattr(process, 'cpu_affinity'):
+                # Reset to all CPUs
+                all_cpus = list(range(psutil.cpu_count()))
+                process.cpu_affinity(all_cpus)
+                
+            logger.info(f"[{self.batch_id}] Process priority restored")
+        except Exception as e:
+            logger.warning(f"Failed to restore process priority: {e}")
+            
+        self.add_log("Processing priority restored to normal", "info")
+        return self.get_status_dict()
+    
     def stop(self):
         """Stop the processing"""
         self.should_stop = True
@@ -657,6 +990,22 @@ def resume_batch_processing(batch_id: str) -> Dict[str, Any]:
     processor.resume()
     return processor.get_status_dict()
 
+
+def deprioritize_batch_processing(batch_id: str, level: int = 1) -> Dict[str, Any]:
+    """Deprioritize a batch processing job to reduce CPU usage"""
+    if batch_id not in batch_processing_status:
+        raise HTTPException(status_code=404, detail=f"Batch {batch_id} not found")
+    
+    processor = batch_processing_status[batch_id]
+    return processor.deprioritize(level)
+
+def restore_batch_priority(batch_id: str) -> Dict[str, Any]:
+    """Restore normal priority for a batch processing job"""
+    if batch_id not in batch_processing_status:
+        raise HTTPException(status_code=404, detail=f"Batch {batch_id} not found")
+    
+    processor = batch_processing_status[batch_id]
+    return processor.restore_priority()
 
 def stop_batch_processing(batch_id: str) -> Dict[str, Any]:
     """Stop a batch processing job"""

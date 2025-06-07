@@ -54,9 +54,35 @@ const UnifiedProcessingSettings = ({
         language: 'spa',
         confidenceThreshold: 0.7,
         enableGpuAcceleration: true,
+        preferredGpu: 'auto',  // "auto", "0", "1", "2", etc.
         batchSize: 5,
-        autoSave: true
+        autoSave: true,
+        reprocess: true  // Add reprocess flag to enable reprocessing of already processed files
     });
+    
+    // State for available GPUs
+    const [gpuInfo, setGpuInfo] = useState({
+        isAvailable: false,
+        deviceCount: 0,
+        devices: []
+    });
+    
+    // Fetch GPU information on component mount
+    React.useEffect(() => {
+        const fetchGpuInfo = async () => {
+            try {
+                const response = await fetch('/api/ocr/gpu-info');
+                if (response.ok) {
+                    const data = await response.json();
+                    setGpuInfo(data);
+                }
+            } catch (error) {
+                console.error('Error fetching GPU information:', error);
+            }
+        };
+        
+        fetchGpuInfo();
+    }, []);
 
     const handlePaginationSettingChange = (key, value) => {
         setPaginationSettings(prev => {
@@ -384,6 +410,32 @@ const UnifiedProcessingSettings = ({
                                                     }
                                                 />
                                                 
+                                                {/* GPU Selection Dropdown - Only show when GPU acceleration is enabled */}
+                                                {ocrSettings.enableGpuAcceleration && (
+                                                    <Box sx={{ ml: 4, mt: 1 }}>
+                                                        <TextField
+                                                            fullWidth
+                                                            select
+                                                            size="small"
+                                                            label="GPU Selection"
+                                                            value={ocrSettings.preferredGpu}
+                                                            onChange={(e) => handleOcrSettingChange('preferredGpu', e.target.value)}
+                                                            helperText={
+                                                                gpuInfo.isAvailable
+                                                                    ? `${gpuInfo.deviceCount} GPU(s) available`
+                                                                    : "No GPUs detected"
+                                                            }
+                                                        >
+                                                            <MenuItem value="auto">Auto (Round-Robin)</MenuItem>
+                                                            {gpuInfo.devices.map((device) => (
+                                                                <MenuItem key={device.id} value={device.id.toString()}>
+                                                                    GPU {device.id}: {device.name}
+                                                                </MenuItem>
+                                                            ))}
+                                                        </TextField>
+                                                    </Box>
+                                                )}
+                                                
                                                 <FormControlLabel
                                                     control={
                                                         <Switch
@@ -393,6 +445,25 @@ const UnifiedProcessingSettings = ({
                                                     }
                                                     label={
                                                         <Typography variant="body2">Auto-save results</Typography>
+                                                    }
+                                                />
+                                                
+                                                <FormControlLabel
+                                                    control={
+                                                        <Switch
+                                                            checked={ocrSettings.reprocess}
+                                                            onChange={(e) => handleOcrSettingChange('reprocess', e.target.checked)}
+                                                        />
+                                                    }
+                                                    label={
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                            <Typography variant="body2">Reprocess existing files</Typography>
+                                                            <Tooltip title="When enabled, files will be reprocessed even if they were processed before">
+                                                                <IconButton size="small">
+                                                                    <InfoIcon fontSize="small" />
+                                                                </IconButton>
+                                                            </Tooltip>
+                                                        </Box>
                                                     }
                                                 />
                                             </Box>
@@ -452,10 +523,21 @@ const UnifiedProcessingSettings = ({
                                     size="small" 
                                 />
                                 {ocrSettings.enableGpuAcceleration && (
-                                    <Chip 
-                                        label={translate('processing.gpu_enabled')}
-                                        color="success" 
-                                        size="small" 
+                                    <Chip
+                                        label={
+                                            ocrSettings.preferredGpu === 'auto'
+                                                ? `${translate('processing.gpu_enabled')} (Auto)`
+                                                : `${translate('processing.gpu_enabled')} (GPU ${ocrSettings.preferredGpu})`
+                                        }
+                                        color="success"
+                                        size="small"
+                                    />
+                                )}
+                                {ocrSettings.reprocess && (
+                                    <Chip
+                                        label="Reprocessing Enabled"
+                                        color="warning"
+                                        size="small"
                                     />
                                 )}
                             </Box>

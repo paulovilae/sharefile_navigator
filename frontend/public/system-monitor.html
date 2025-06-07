@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Resource Monitor</title>
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" />
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding-bottom: 20px;
+        }
+        /* Styles for popup mode */
+        body.popup-mode {
+            padding: 10px;
+            max-height: 100vh;
+            overflow-y: auto;
+        }
+        body.popup-mode .container {
+            padding-bottom: 50px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .row {
+            display: flex;
+            flex-wrap: wrap;
+            margin: 0 -10px;
+        }
+        .col {
+            flex: 1;
+            padding: 0 10px;
+            min-width: 250px;
+            margin-bottom: 20px;
+        }
+        .gauge {
+            position: relative;
+            width: 200px;
+            height: 100px;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        .gauge-background {
+            position: absolute;
+            width: 200px;
+            height: 100px;
+            border-radius: 100px 100px 0 0;
+            background-color: #f0f0f0;
+        }
+        .gauge-fill {
+            position: absolute;
+            width: 200px;
+            height: 100px;
+            border-radius: 100px 100px 0 0;
+            background-color: #4caf50;
+            transform-origin: center bottom;
+            transform: rotate(0deg);
+            transition: transform 0.5s ease-out;
+        }
+        .gauge-cover {
+            position: absolute;
+            width: 160px;
+            height: 80px;
+            top: 10px;
+            left: 20px;
+            border-radius: 80px 80px 0 0;
+            background-color: white;
+            text-align: center;
+            padding-top: 20px;
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .gauge-label {
+            text-align: center;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        .chart {
+            width: 100%;
+            height: 300px;
+            margin-bottom: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        table th, table td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+        table th {
+            background-color: #f5f5f5;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status-processing {
+            background-color: #2196f3;
+            color: white;
+        }
+        .status-completed {
+            background-color: #4caf50;
+            color: white;
+        }
+        .status-error {
+            background-color: #f44336;
+            color: white;
+        }
+        .status-cancelled {
+            background-color: #ff9800;
+            color: white;
+        }
+        .progress-bar {
+            height: 8px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background-color: #2196f3;
+            transition: width 0.3s ease;
+        }
+        .button {
+            padding: 10px 15px;
+            background-color: #2196f3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        .button:hover {
+            background-color: #0b7dda;
+        }
+        .button-secondary {
+            background-color: #f5f5f5;
+            color: #333;
+            border: 1px solid #ddd;
+        }
+        .button-secondary:hover {
+            background-color: #e0e0e0;
+        }
+        .action-button {
+            padding: 4px 8px;
+            margin: 0 2px;
+            font-size: 12px;
+            border-radius: 3px;
+            cursor: pointer;
+            border: none;
+            color: white;
+        }
+        .pause-button {
+            background-color: #ff9800;
+        }
+        .resume-button {
+            background-color: #4caf50;
+        }
+        .stop-button {
+            background-color: #f44336;
+        }
+        .deprioritize-button {
+            background-color: #9e9e9e;
+        }
+        .action-button:hover {
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1>System Resource Monitor</h1>
+                <div id="currentTime" style="color: #666; margin-top: -10px;"></div>
+            </div>
+            <div>
+                <button id="refreshButton" class="button">
+                    <span id="refreshIcon">↻</span> Refresh
+                </button>
+                <button id="autoRefreshButton" class="button button-secondary">
+                    Stop Auto-refresh
+                </button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Resource Usage History</h2>
+            <div id="resourceChart" class="chart">
+                <canvas id="lineChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col">
+                <div class="card">
+                    <h2>CPU Usage</h2>
+                    <div class="gauge">
+                        <div class="gauge-background"></div>
+                        <div id="cpuGaugeFill" class="gauge-fill"></div>
+                        <div class="gauge-cover">
+                            <span id="cpuValue">0</span>%
+                        </div>
+                    </div>
+                    <div class="gauge-label">CPU Cores: <span id="cpuCores">N/A</span></div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card">
+                    <h2>Memory Usage</h2>
+                    <div class="gauge">
+                        <div class="gauge-background"></div>
+                        <div id="memoryGaugeFill" class="gauge-fill"></div>
+                        <div class="gauge-cover">
+                            <span id="memoryValue">0</span>%
+                        </div>
+                    </div>
+                    <div class="gauge-label">
+                        <span id="memoryUsed">0</span> / <span id="memoryTotal">0</span> GB
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card">
+                    <h2>Disk Usage</h2>
+                    <div class="gauge">
+                        <div class="gauge-background"></div>
+                        <div id="diskGaugeFill" class="gauge-fill"></div>
+                        <div class="gauge-cover">
+                            <span id="diskValue">0</span>%
+                        </div>
+                    </div>
+                    <div class="gauge-label">
+                        <span id="diskUsed">0</span> / <span id="diskTotal">0</span> GB
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card">
+                    <h2>GPU Status</h2>
+                    <div id="gpuStatus" class="gauge">
+                        <div class="gauge-background"></div>
+                        <div id="gpuGaugeFill" class="gauge-fill"></div>
+                        <div class="gauge-cover">
+                            <span id="gpuValue">N/A</span>%
+                        </div>
+                    </div>
+                    <div class="gauge-label">GPU Devices: <span id="gpuDevices">0</span></div>
+                    <div id="gpuDetails" style="margin-top: 15px; font-size: 14px;">
+                        <div>Memory: <span id="gpuMemoryUsed">0</span> / <span id="gpuMemoryTotal">0</span> MB</div>
+                        <div>Utilization: <span id="gpuUtilization">0</span>%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col" style="flex: 1;">
+                <div class="card">
+                    <h2>Process Information</h2>
+                    <table>
+                        <tr>
+                            <th>Process ID</th>
+                            <td id="processId">N/A</td>
+                        </tr>
+                        <tr>
+                            <th>CPU Usage</th>
+                            <td id="processCpu">0%</td>
+                        </tr>
+                        <tr>
+                            <th>Memory Usage</th>
+                            <td id="processMemory">0 MB</td>
+                        </tr>
+                        <tr>
+                            <th>Threads</th>
+                            <td id="processThreads">0</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            <div class="col" style="flex: 2;">
+                <div class="card">
+                    <h2>Batch Processing Status</h2>
+                    <div id="batchStatus">
+                        <p>No active batch processing jobs</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Initialize variables
+        let chart;
+        let autoRefreshInterval;
+        let isAutoRefreshEnabled = true;
+        
+        // Chart data
+        const chartData = {
+            labels: [],
+            datasets: [
+                {
+                    label: 'CPU',
+                    data: [],
+                    borderColor: 'rgb(255, 99, 132)',
+                    backgroundColor: 'rgba(255, 99, 132, 0.5)',
+                    tension: 0.4
+                },
+                {
+                    label: 'Memory',
+                    data: [],
+                    borderColor: 'rgb(54, 162, 235)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                    tension: 0.4
+                },
+                {
+                    label: 'GPU',
+                    data: [],
+                    borderColor: 'rgb(75, 192, 192)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.5)',
+                    tension: 0.4
+                }
+            ]
+        };
+        
+        // Initialize chart
+        function initChart() {
+            const ctx = document.getElementById('lineChart').getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: chartData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            title: {
+                                display: true,
+                                text: 'Usage (%)'
+                            }
+                        }
+                    },
+                    animation: {
+                        duration: 500
+                    }
+                }
+            });
+        }
+        
+        // Update gauge
+        function updateGauge(id, value) {
+            const fill = document.getElementById(id);
+            const rotation = (value / 100) * 180;
+            fill.style.transform = `rotate(${rotation}deg)`;
+            
+            // Update color based on value
+            if (value < 60) {
+                fill.style.backgroundColor = '#4caf50'; // Green
+            } else if (value < 80) {
+                fill.style.backgroundColor = '#ff9800'; // Orange
+            } else {
+                fill.style.backgroundColor = '#f44336'; // Red
+            }
+        }
+        
+        // Format batch status
+        function formatBatchStatus(batchProcessing) {
+            if (!batchProcessing || batchProcessing.active_batches === 0) {
+                return '<p>No active batch processing jobs</p>';
+            }
+            
+            const jobs = batchProcessing.jobs || {};
+            let html = '<table><tr><th>Batch ID</th><th>Status</th><th>Progress</th><th>Processed</th><th>Current File</th><th>Actions</th></tr>';
+            
+            Object.entries(jobs).forEach(([batchId, job]) => {
+                const statusClass = job.status === 'completed' ? 'status-completed' :
+                                    job.status === 'error' ? 'status-error' :
+                                    job.status === 'cancelled' ? 'status-cancelled' : 'status-processing';
+                
+                const progress = job.progress_percentage || 0;
+                const currentFile = job.current_file ? (job.current_file.name || 'Unknown') : 'None';
+                
+                // Create action buttons based on job status
+                let actionButtons = '';
+                
+                if (job.status === 'processing') {
+                    if (job.is_paused) {
+                        actionButtons = `<button class="action-button resume-button" data-batch-id="${batchId}">Resume</button>`;
+                    } else {
+                        actionButtons = `<button class="action-button pause-button" data-batch-id="${batchId}">Pause</button>`;
+                    }
+                    actionButtons += `<button class="action-button stop-button" data-batch-id="${batchId}">Stop</button>`;
+                    
+                    // Show deprioritize or restore priority button based on current state
+                    if (job.is_deprioritized) {
+                        actionButtons += `<button class="action-button restore-priority-button" data-batch-id="${batchId}">Normal Priority</button>`;
+                    } else {
+                        actionButtons += `<button class="action-button deprioritize-button" data-batch-id="${batchId}">Deprioritize</button>`;
+                    }
+                } else if (job.status === 'paused') {
+                    actionButtons = `
+                        <button class="action-button resume-button" data-batch-id="${batchId}">Resume</button>
+                        <button class="action-button stop-button" data-batch-id="${batchId}">Stop</button>
+                    `;
+                }
+                
+                html += `
+                    <tr>
+                        <td>${batchId}</td>
+                        <td><span class="status-badge ${statusClass}">${job.status}</span></td>
+                        <td>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: ${progress}%"></div>
+                            </div>
+                            ${Math.round(progress)}%
+                        </td>
+                        <td>${job.processed_count || 0}/${job.total_files || 0}</td>
+                        <td>${currentFile}</td>
+                        <td>${actionButtons}</td>
+                    </tr>
+                `;
+            });
+            
+            html += '</table>';
+            return html;
+        }
+        
+        // Fetch resources
+        async function fetchResources() {
+            try {
+                document.getElementById('refreshIcon').classList.add('rotating');
+                
+                const response = await fetch('/api/system-monitor/resources');
+                const data = await response.json();
+                
+                // Update CPU gauge
+                const cpuPercent = Math.round(data.cpu.percent);
+                document.getElementById('cpuValue').textContent = cpuPercent;
+                document.getElementById('cpuCores').textContent = data.cpu.count;
+                updateGauge('cpuGaugeFill', cpuPercent);
+                
+                // Update Memory gauge
+                const memoryPercent = Math.round(data.memory.percent);
+                document.getElementById('memoryValue').textContent = memoryPercent;
+                document.getElementById('memoryUsed').textContent = data.memory.used.toFixed(2);
+                document.getElementById('memoryTotal').textContent = data.memory.total.toFixed(2);
+                updateGauge('memoryGaugeFill', memoryPercent);
+                
+                // Update Disk gauge
+                const diskPercent = Math.round(data.disk.percent);
+                document.getElementById('diskValue').textContent = diskPercent;
+                document.getElementById('diskUsed').textContent = data.disk.used.toFixed(2);
+                document.getElementById('diskTotal').textContent = data.disk.total.toFixed(2);
+                updateGauge('diskGaugeFill', diskPercent);
+                
+                // Update GPU status
+                if (data.gpu.available) {
+                    // Calculate GPU utilization percentage
+                    let gpuUtilization = 0;
+                    let gpuMemoryUsed = 0;
+                    let gpuMemoryTotal = 0;
+                    
+                    if (data.gpu.usage && data.gpu.usage.usage) {
+                        // Get the first GPU device (or average if multiple)
+                        const gpuDevices = Object.keys(data.gpu.usage.usage);
+                        if (gpuDevices.length > 0) {
+                            // Calculate average utilization across all GPUs
+                            let totalUtilization = 0;
+                            let totalMemoryUsed = 0;
+                            let totalMemoryTotal = 0;
+                            
+                            gpuDevices.forEach(gpuId => {
+                                const stats = data.gpu.usage.usage[gpuId];
+                                // If GPU is in use, count as 100% utilized
+                                if (stats.in_use) {
+                                    totalUtilization += 100;
+                                } else {
+                                    // Otherwise use a lower value (could be refined with actual GPU metrics)
+                                    totalUtilization += 10;
+                                }
+                                
+                                // Add memory stats if available (placeholder for now)
+                                totalMemoryUsed += stats.memory_used || 0;
+                                totalMemoryTotal += stats.memory_total || 0;
+                            });
+                            
+                            gpuUtilization = Math.round(totalUtilization / gpuDevices.length);
+                            gpuMemoryUsed = Math.round(totalMemoryUsed / gpuDevices.length);
+                            gpuMemoryTotal = Math.round(totalMemoryTotal / gpuDevices.length);
+                        }
+                    }
+                    
+                    document.getElementById('gpuValue').textContent = gpuUtilization;
+                    document.getElementById('gpuDevices').textContent = data.gpu.device_count;
+                    document.getElementById('gpuUtilization').textContent = gpuUtilization;
+                    document.getElementById('gpuMemoryUsed').textContent = gpuMemoryUsed;
+                    document.getElementById('gpuMemoryTotal').textContent = gpuMemoryTotal;
+                    
+                    // Update gauge color based on utilization
+                    if (gpuUtilization < 60) {
+                        document.getElementById('gpuGaugeFill').style.backgroundColor = '#4caf50';
+                    } else if (gpuUtilization < 80) {
+                        document.getElementById('gpuGaugeFill').style.backgroundColor = '#ff9800';
+                    } else {
+                        document.getElementById('gpuGaugeFill').style.backgroundColor = '#f44336';
+                    }
+                    
+                    updateGauge('gpuGaugeFill', gpuUtilization);
+                } else {
+                    document.getElementById('gpuValue').textContent = 'N/A';
+                    document.getElementById('gpuDevices').textContent = '0';
+                    document.getElementById('gpuUtilization').textContent = '0';
+                    document.getElementById('gpuMemoryUsed').textContent = '0';
+                    document.getElementById('gpuMemoryTotal').textContent = '0';
+                    document.getElementById('gpuGaugeFill').style.backgroundColor = '#f44336';
+                    updateGauge('gpuGaugeFill', 0);
+                }
+                
+                // Update Process info
+                document.getElementById('processId').textContent = data.process.pid;
+                document.getElementById('processCpu').textContent = `${data.process.cpu_percent.toFixed(2)}%`;
+                document.getElementById('processMemory').textContent = `${data.process.memory_info.rss.toFixed(2)} MB`;
+                document.getElementById('processThreads').textContent = data.process.threads;
+                
+                // Update Batch status
+                document.getElementById('batchStatus').innerHTML = formatBatchStatus(data.batch_processing);
+                
+                // Add event listeners to the newly created buttons
+                document.querySelectorAll('.pause-button').forEach(button => {
+                    button.addEventListener('click', () => pauseBatch(button.dataset.batchId));
+                });
+                
+                document.querySelectorAll('.resume-button').forEach(button => {
+                    button.addEventListener('click', () => resumeBatch(button.dataset.batchId));
+                });
+                
+                document.querySelectorAll('.stop-button').forEach(button => {
+                    button.addEventListener('click', () => stopBatch(button.dataset.batchId));
+                });
+                
+                document.querySelectorAll('.deprioritize-button').forEach(button => {
+                    button.addEventListener('click', () => deprioritizeBatch(button.dataset.batchId));
+                });
+                
+                document.querySelectorAll('.restore-priority-button').forEach(button => {
+                    button.addEventListener('click', () => restoreBatchPriority(button.dataset.batchId));
+                });
+                
+                // Update chart data
+                const timestamp = new Date(data.timestamp);
+                const timeLabel = `${timestamp.getHours()}:${timestamp.getMinutes()}:${timestamp.getSeconds()}`;
+                
+                // Add new data point
+                chartData.labels.push(timeLabel);
+                chartData.datasets[0].data.push(cpuPercent);
+                chartData.datasets[1].data.push(memoryPercent);
+                chartData.datasets[2].data.push(data.gpu.available ? 100 : 0);
+                
+                // Limit data points to last 20
+                if (chartData.labels.length > 20) {
+                    chartData.labels.shift();
+                    chartData.datasets.forEach(dataset => dataset.data.shift());
+                }
+                
+                // Update chart
+                chart.update();
+                
+                document.getElementById('refreshIcon').classList.remove('rotating');
+            } catch (error) {
+                console.error('Error fetching resources:', error);
+                document.getElementById('refreshIcon').classList.remove('rotating');
+            }
+        }
+        
+        // Toggle auto-refresh
+        function toggleAutoRefresh() {
+            isAutoRefreshEnabled = !isAutoRefreshEnabled;
+            
+            if (isAutoRefreshEnabled) {
+                document.getElementById('autoRefreshButton').textContent = 'Stop Auto-refresh';
+                document.getElementById('autoRefreshButton').classList.remove('button-secondary');
+                document.getElementById('autoRefreshButton').classList.add('button');
+                
+                // Start auto-refresh
+                fetchResources();
+                autoRefreshInterval = setInterval(fetchResources, 2000);
+            } else {
+                document.getElementById('autoRefreshButton').textContent = 'Start Auto-refresh';
+                document.getElementById('autoRefreshButton').classList.remove('button');
+                document.getElementById('autoRefreshButton').classList.add('button-secondary');
+                
+                // Stop auto-refresh
+                clearInterval(autoRefreshInterval);
+            }
+        }
+        
+        // Update current time
+        function updateCurrentTime() {
+            const now = new Date();
+            const options = {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            };
+            document.getElementById('currentTime').textContent = now.toLocaleString(undefined, options);
+        }
+        
+        // Check if running in popup window
+        function checkIfPopup() {
+            if (window.opener && window.opener !== window) {
+                document.body.classList.add('popup-mode');
+            }
+        }
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            // Check if we're in a popup
+            checkIfPopup();
+            
+            // Update time initially and every second
+            updateCurrentTime();
+            setInterval(updateCurrentTime, 1000);
+            
+            // Initialize chart
+            initChart();
+            
+            // Set up event listeners
+            document.getElementById('refreshButton').addEventListener('click', fetchResources);
+            document.getElementById('autoRefreshButton').addEventListener('click', toggleAutoRefresh);
+            
+            // Initial fetch
+            fetchResources();
+            
+            // Start auto-refresh
+            autoRefreshInterval = setInterval(fetchResources, 2000);
+            
+            // Add CSS for rotation animation
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes rotating {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
+                }
+                .rotating {
+                    animation: rotating 1s linear infinite;
+                    display: inline-block;
+                }
+            `;
+            document.head.appendChild(style);
+        });
+        
+        // Batch control functions
+        async function pauseBatch(batchId) {
+            try {
+                const response = await fetch(`/api/ocr/batch/pause/${batchId}`, {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    console.log(`Batch ${batchId} paused successfully`);
+                    // Refresh data immediately
+                    fetchResources();
+                } else {
+                    console.error(`Failed to pause batch ${batchId}:`, await response.text());
+                    alert(`Failed to pause batch ${batchId}`);
+                }
+            } catch (error) {
+                console.error(`Error pausing batch ${batchId}:`, error);
+                alert(`Error pausing batch ${batchId}: ${error.message}`);
+            }
+        }
+        
+        async function resumeBatch(batchId) {
+            try {
+                const response = await fetch(`/api/ocr/batch/resume/${batchId}`, {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    console.log(`Batch ${batchId} resumed successfully`);
+                    // Refresh data immediately
+                    fetchResources();
+                } else {
+                    console.error(`Failed to resume batch ${batchId}:`, await response.text());
+                    alert(`Failed to resume batch ${batchId}`);
+                }
+            } catch (error) {
+                console.error(`Error resuming batch ${batchId}:`, error);
+                alert(`Error resuming batch ${batchId}: ${error.message}`);
+            }
+        }
+        
+        async function stopBatch(batchId) {
+            if (confirm(`Are you sure you want to stop batch ${batchId}? This action cannot be undone.`)) {
+                try {
+                    const response = await fetch(`/api/ocr/batch/stop/${batchId}`, {
+                        method: 'POST'
+                    });
+                    
+                    if (response.ok) {
+                        console.log(`Batch ${batchId} stopped successfully`);
+                        // Refresh data immediately
+                        fetchResources();
+                    } else {
+                        console.error(`Failed to stop batch ${batchId}:`, await response.text());
+                        alert(`Failed to stop batch ${batchId}`);
+                    }
+                } catch (error) {
+                    console.error(`Error stopping batch ${batchId}:`, error);
+                    alert(`Error stopping batch ${batchId}: ${error.message}`);
+                }
+            }
+        }
+        
+        async function deprioritizeBatch(batchId) {
+            try {
+                // Default to medium throttling (level 1)
+                const throttleLevel = 1;
+                
+                const response = await fetch(`/api/ocr/batch/deprioritize/${batchId}?level=${throttleLevel}`, {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    console.log(`Batch ${batchId} deprioritized successfully`);
+                    // Refresh data immediately
+                    fetchResources();
+                } else {
+                    console.error(`Failed to deprioritize batch ${batchId}:`, await response.text());
+                    alert(`Failed to deprioritize batch ${batchId}`);
+                }
+            } catch (error) {
+                console.error(`Error deprioritizing batch ${batchId}:`, error);
+                alert(`Error deprioritizing batch ${batchId}: ${error.message}`);
+            }
+        }
+        
+        async function restoreBatchPriority(batchId) {
+            try {
+                const response = await fetch(`/api/ocr/batch/restore-priority/${batchId}`, {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    console.log(`Batch ${batchId} priority restored successfully`);
+                    // Refresh data immediately
+                    fetchResources();
+                } else {
+                    console.error(`Failed to restore batch ${batchId} priority:`, await response.text());
+                    alert(`Failed to restore batch ${batchId} priority`);
+                }
+            } catch (error) {
+                console.error(`Error restoring batch ${batchId} priority:`, error);
+                alert(`Error restoring batch ${batchId} priority: ${error.message}`);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -97,7 +97,8 @@ class PdfOcrRequest(BaseModel):
         "ocrEngine": None,  # Will be set from database settings
         "language": "spa",  # Default to Spanish
         "enableGpuAcceleration": True,
-        "confidenceThreshold": 0.7
+        "confidenceThreshold": 0.7,
+        "preferredGpu": "auto"  # "auto", "0", "1", "2", etc.
     }
 
 class BatchFileInfo(BaseModel):
@@ -121,6 +122,7 @@ class BatchProcessingRequest(BaseModel):
         "language": "spa",
         "confidenceThreshold": 0.7,
         "enableGpuAcceleration": True,
+        "preferredGpu": "auto",  # "auto", "0", "1", "2", etc.
         "batchSize": 5,
         "autoSave": True
     }

@@ -26,12 +26,14 @@ import {
   PictureAsPdf as PdfIcon,
   Download as DownloadIcon
 } from '@mui/icons-material';
+import { useTranslate } from 'react-admin';
 import ThumbnailViewer from '../../../ThumbnailViewer';
 
 /**
  * PDF Results Display Component - Shows processed PDF results with image previews
  */
 const PdfResultsDisplay = ({ results = [] }) => {
+  const translate = useTranslate();
   const [selectedImageDialog, setSelectedImageDialog] = useState(null);
   const [pdfDialogOpen, setPdfDialogOpen] = useState(false);
   const [currentPdfUrl, setCurrentPdfUrl] = useState(null);
@@ -88,7 +90,7 @@ const PdfResultsDisplay = ({ results = [] }) => {
   return (
     <Box>
       <Typography variant="h6" gutterBottom>
-        PDF Processing Results ({results.length})
+        {translate('pdf.processing_results', { count: results.length })}
       </Typography>
       
       {results.map((result) => (
@@ -110,16 +112,43 @@ const PdfResultsDisplay = ({ results = [] }) => {
                 )}
               </Box>
               <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                <Chip size="small" label={`${result.pageCount} pages`} />
-                <Chip size="small" label={`${result.totalWords} words`} />
+                <Chip size="small" label={`${result.pageCount} ${translate('pdf.pages')}`} />
+                <Chip size="small" label={`${result.totalWords} ${translate('pdf.words')}`} />
                 <Chip size="small" label={`${result.processingTime}ms`} />
                 <Chip
                   size="small"
-                  label={result.hasEmbeddedText ? 'Text Extracted' : 'OCR Processed'}
+                  label={result.hasEmbeddedText ? translate('status.text_extracted') : translate('status.ocr_processed')}
                   color={result.hasEmbeddedText ? 'success' : 'warning'}
                 />
+                {/* GPU Usage Information */}
+                {result.gpuUsed !== undefined && (
+                  <Tooltip title={
+                    result.gpuUsed
+                      ? `GPU Used: ${result.selectedGpu !== undefined ? (result.selectedGpu === null ? 'Auto' : `GPU ${result.selectedGpu}`) : 'Yes'}
+                         ${result.gpuInfo ? `\nAvailable: ${result.gpuInfo.devices.map(d => `${d.name} (ID: ${d.id})`).join(', ')}` : ''}`
+                      : 'CPU Used (No GPU)'
+                  }>
+                    <Chip
+                      size="small"
+                      label={
+                        result.gpuUsed
+                          ? (result.selectedGpu !== undefined
+                              ? (result.selectedGpu === null ? 'GPU (Auto)' : `GPU ${result.selectedGpu}`)
+                              : 'GPU')
+                          : 'CPU'
+                      }
+                      color={result.gpuUsed ? 'success' : 'default'}
+                      variant={result.gpuUsed ? 'filled' : 'outlined'}
+                      sx={{
+                        fontWeight: 'bold',
+                        bgcolor: result.gpuUsed ? 'success.light' : 'grey.100',
+                        color: result.gpuUsed ? 'white' : 'text.secondary'
+                      }}
+                    />
+                  </Tooltip>
+                )}
                 {/* Document-level PDF actions */}
-                <Tooltip title="View PDF">
+                <Tooltip title={translate('action.view_pdf')}>
                   <IconButton
                     size="small"
                     onClick={() => handleViewPdf(result)}
@@ -132,7 +161,7 @@ const PdfResultsDisplay = ({ results = [] }) => {
                     <PdfIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
-                <Tooltip title="Download PDF">
+                <Tooltip title={translate('action.download_pdf')}>
                   <IconButton
                     size="small"
                     onClick={() => handleDownloadPdf(result)}
@@ -150,13 +179,13 @@ const PdfResultsDisplay = ({ results = [] }) => {
             
             {/* Page Thumbnails Grid */}
             <Typography variant="subtitle2" gutterBottom>
-              Pages ({result.pages.length})
+              {translate('pdf.pages_count', { count: result.pages.length })}
             </Typography>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, maxHeight: 300, overflow: 'auto' }}>
               {result.pages.map((page) => (
                 <Box key={page.id} sx={{ position: 'relative' }}>
                   <ThumbnailViewer
-                    fileId={`${page.fileId || page.id}_page_${page.pageNumber}`}
+                    fileId={page.fileId || page.id}
                     title={`Page ${page.pageNumber}`}
                     showInfo={false}
                     showPdfActions={false}
@@ -179,7 +208,7 @@ const PdfResultsDisplay = ({ results = [] }) => {
                       borderRadius: 0.5,
                       fontSize: '0.6rem'
                     }}>
-                      {page.wordCount} words
+                      {page.wordCount} {translate('pdf.words')}
                     </Typography>
                     <Chip
                       size="small"
@@ -225,7 +254,7 @@ const PdfResultsDisplay = ({ results = [] }) => {
               <Grid container spacing={2}>
                 <Grid item xs={12} md={6}>
                   <Typography variant="subtitle2" gutterBottom>
-                    Page Image
+                    {translate('pdf.page_image')}
                   </Typography>
                   <Box
                     sx={{
@@ -255,9 +284,16 @@ const PdfResultsDisplay = ({ results = [] }) => {
                         }}
                         onError={(e) => {
                           console.error('Image failed to load:', selectedImageDialog.imageUrl);
-                          e.target.style.display = 'none';
-                          const fallback = e.target.parentNode.querySelector('.fallback-message');
-                          if (fallback) fallback.style.display = 'flex';
+                          // Try to load from processed-image endpoint as fallback
+                          const fileId = selectedImageDialog.fileId || selectedImageDialog.id;
+                          const processedImageUrl = `http://localhost:8000/api/thumbnails/processed-image/${fileId}`;
+                          console.log('Trying processed image URL:', processedImageUrl);
+                          e.target.src = processedImageUrl;
+                          e.target.onerror = () => {
+                            e.target.style.display = 'none';
+                            const fallback = e.target.parentNode.querySelector('.fallback-message');
+                            if (fallback) fallback.style.display = 'flex';
+                          };
                         }}
                       />
                     ) : (
@@ -274,8 +310,8 @@ const PdfResultsDisplay = ({ results = [] }) => {
                         <ImageIcon sx={{ fontSize: 60, color: 'grey.500' }} />
                         <Typography variant="body2" color="text.secondary" align="center">
                           {selectedImageDialog.status === 'preloaded'
-                            ? 'Image no longer available\n(Previously processed data - text extracted successfully)'
-                            : 'No image URL provided'}
+                            ? translate('pdf.image_no_longer_available')
+                            : translate('pdf.no_image_url')}
                         </Typography>
                       </Box>
                     )}
@@ -291,29 +327,56 @@ const PdfResultsDisplay = ({ results = [] }) => {
                     >
                       <ImageIcon sx={{ fontSize: 60, color: 'grey.500' }} />
                       <Typography variant="body2" color="text.secondary">
-                        Image failed to load
+                        {translate('pdf.image_failed_to_load')}
                       </Typography>
                     </Box>
                   </Box>
                   <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
                     <Chip
                       size="small"
-                      label={`${selectedImageDialog.wordCount} words`}
+                      label={`${selectedImageDialog.wordCount} ${translate('pdf.words')}`}
                     />
                     <Chip
                       size="small"
-                      label={`${Math.round(selectedImageDialog.confidence * 100)}% confidence`}
+                      label={`${Math.round(selectedImageDialog.confidence * 100)}% ${translate('pdf.confidence')}`}
                     />
                     <Chip
                       size="small"
-                      label={selectedImageDialog.hasEmbeddedText ? 'Embedded Text' : 'OCR Text'}
+                      label={selectedImageDialog.hasEmbeddedText ? translate('status.embedded_text') : translate('status.ocr_text')}
                       color={selectedImageDialog.hasEmbeddedText ? 'success' : 'warning'}
                     />
+                    {/* GPU Usage Information for individual page */}
+                    {selectedImageDialog.gpuUsed !== undefined && (
+                      <Tooltip title={
+                        selectedImageDialog.gpuUsed
+                          ? `GPU Used: ${selectedImageDialog.selectedGpu !== undefined ? (selectedImageDialog.selectedGpu === null ? 'Auto' : `GPU ${selectedImageDialog.selectedGpu}`) : 'Yes'}
+                             ${selectedImageDialog.gpuInfo ? `\nAvailable: ${selectedImageDialog.gpuInfo.devices.map(d => `${d.name} (ID: ${d.id})`).join(', ')}` : ''}`
+                          : 'CPU Used (No GPU)'
+                      }>
+                        <Chip
+                          size="small"
+                          label={
+                            selectedImageDialog.gpuUsed
+                              ? (selectedImageDialog.selectedGpu !== undefined
+                                  ? (selectedImageDialog.selectedGpu === null ? 'GPU (Auto)' : `GPU ${selectedImageDialog.selectedGpu}`)
+                                  : 'GPU')
+                              : 'CPU'
+                          }
+                          color={selectedImageDialog.gpuUsed ? 'success' : 'default'}
+                          variant={selectedImageDialog.gpuUsed ? 'filled' : 'outlined'}
+                          sx={{
+                            fontWeight: 'bold',
+                            bgcolor: selectedImageDialog.gpuUsed ? 'success.light' : 'grey.100',
+                            color: selectedImageDialog.gpuUsed ? 'white' : 'text.secondary'
+                          }}
+                        />
+                      </Tooltip>
+                    )}
                   </Box>
                 </Grid>
                 <Grid item xs={12} md={6}>
                   <Typography variant="subtitle2" gutterBottom>
-                    Extracted Text
+                    {translate('pdf.extracted_text')}
                   </Typography>
                   <Paper
                     elevation={1}
@@ -333,10 +396,10 @@ const PdfResultsDisplay = ({ results = [] }) => {
             </DialogContent>
             <DialogActions>
               <Button onClick={() => setSelectedImageDialog(null)}>
-                Close
+                {translate('action.close')}
               </Button>
               <Button variant="contained" startIcon={<SaveIcon />}>
-                Save Text
+                {localStorage.getItem('app_language') === 'es' ? 'Guardar Texto' : 'Save Text'}
               </Button>
             </DialogActions>
           </>
@@ -379,14 +442,14 @@ const PdfResultsDisplay = ({ results = [] }) => {
                 height: 200
               }}
             >
-              <Typography>Loading PDF...</Typography>
+              <Typography>{translate('pdf.loading')}</Typography>
             </Box>
           )}
         </DialogContent>
         
         <DialogActions>
           <Button onClick={handleClosePdfDialog}>
-            Close
+            {translate('action.close')}
           </Button>
         </DialogActions>
       </Dialog>

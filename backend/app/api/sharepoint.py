@@ -20,6 +20,22 @@ def get_graph_token():
     client_secret = os.getenv("CLIENT_SECRET")
     tenant_id = os.getenv("TENANT_ID")
     logger.info(f"SharePoint: CLIENT_ID={client_id}, TENANT_ID={tenant_id}, SHAREPOINT_SITE={os.getenv('SHAREPOINT_SITE')}, SHAREPOINT_SITE_NAME={os.getenv('SHAREPOINT_SITE_NAME')}")
+    
+    # Network connectivity test
+    logger.info("Testing network connectivity to Microsoft authentication servers...")
+    try:
+        import socket
+        ip_address = socket.gethostbyname("login.microsoftonline.com")
+        logger.info(f"DNS resolution successful: login.microsoftonline.com resolves to {ip_address}")
+    except socket.gaierror as dns_error:
+        logger.error(f"DNS resolution failed: {dns_error}")
+        # Try to ping a well-known public DNS to check general internet connectivity
+        try:
+            ip_address = socket.gethostbyname("8.8.8.8")
+            logger.info(f"General internet connectivity check: Can resolve 8.8.8.8 to {ip_address}")
+        except socket.gaierror as general_dns_error:
+            logger.error(f"General internet connectivity check failed: {general_dns_error}")
+    
     if not tenant_id:
         raise ValueError("TENANT_ID environment variable not set. Please configure your SharePoint tenant ID.")
     authority = f"https://login.microsoftonline.com/{tenant_id}"

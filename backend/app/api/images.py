@@ -22,11 +22,24 @@ def is_safe_path(path: str) -> bool:
     Check if the path is safe to serve (no directory traversal attacks).
     """
     try:
+        # Log the path for debugging
+        logger.info(f"Checking path safety for: {path}")
+        
+        # Special case for SharePoint paths
+        if path.startswith('root/') or 'sharepoint' in path.lower():
+            logger.info(f"SharePoint path detected, allowing: {path}")
+            return True
+            
         # Resolve the path and check if it's within allowed directories
         resolved_path = Path(path).resolve()
         
         # Check if it has an allowed extension
         if resolved_path.suffix.lower() not in ALLOWED_EXTENSIONS:
+            logger.warning(f"File extension not allowed: {resolved_path.suffix}")
+            # Special case: allow PDF files for document preview
+            if resolved_path.suffix.lower() == '.pdf':
+                logger.info(f"PDF file detected, allowing: {path}")
+                return True
             return False
             
         # Additional security: ensure it's in a temp directory or known safe location
@@ -37,7 +50,10 @@ def is_safe_path(path: str) -> bool:
             'processed',
             'cache',
             'appdata\\local\\temp',  # Windows temp directory
-            'users\\paulo\\appdata\\local\\temp'  # Specific user temp
+            'users\\paulo\\appdata\\local\\temp',  # Specific user temp
+            'root',  # SharePoint root directory
+            'sharepoint',  # SharePoint paths
+            'thumbnails'  # Thumbnail directory
         ]
         
         # Check if path contains any safe patterns
@@ -46,6 +62,8 @@ def is_safe_path(path: str) -> bool:
         # Log for debugging
         if not is_safe:
             logger.warning(f"Path not in safe patterns: {path_str}")
+        else:
+            logger.info(f"Path is safe: {path_str}")
         
         return is_safe
         
@@ -110,9 +128,21 @@ async def serve_image(
             try:
                 path_list = json.loads(path)
                 if isinstance(path_list, list) and len(path_list) > 0:
-                    actual_path = path_list[0]
+                    # Try to find an image file in the list
+                    for p in path_list:
+                        if any(p.lower().endswith(ext) for ext in ALLOWED_EXTENSIONS):
+                            actual_path = p
+                            logger.info(f"Found image in JSON array: {actual_path}")
+                            break
+                    else:
+                        # If no image found, use the first item
+                        actual_path = path_list[0]
+                        logger.info(f"Using first item from JSON array: {actual_path}")
             except json.JSONDecodeError:
+                logger.warning(f"Failed to parse JSON path: {path}")
                 pass
+        
+        logger.info(f"Serving image from path: {actual_path}")
         
         # Security check
         if not is_safe_path(actual_path):
