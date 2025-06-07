@@ -1,4 +1,6 @@
 import os
+import time
+from datetime import datetime
 from fastapi import FastAPI, Request
 from dotenv import load_dotenv
 from app.api import sharepoint
@@ -17,6 +19,7 @@ from app.api import search
 from app.api import images
 from app.api.thumbnails import routes as thumbnails_router # Updated import
 from app.api import system_monitor
+from app.api import database_settings
 from app.startup import setup_startup_tasks, preload_health_check
 
 load_dotenv()
@@ -50,10 +53,16 @@ app.include_router(search.router, prefix="/api/search", tags=["search"])
 app.include_router(images.router, prefix="/api/images", tags=["images"])
 app.include_router(thumbnails_router.router, prefix="/api/thumbnails", tags=["thumbnails"]) # Updated router
 app.include_router(system_monitor.router, prefix="/api/system-monitor", tags=["system_monitor"])
+app.include_router(database_settings.router, prefix="/api/settings", tags=["database_settings"])
 
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
+
+@app.get("/api/health")
+def api_health_check():
+    """API-prefixed health check endpoint for frontend status monitoring."""
+    return {"status": "ok", "service": "backend", "timestamp": import_time()}
 
 @app.get("/health/preload")
 def preload_health():
@@ -67,3 +76,7 @@ setup_startup_tasks(app)
 async def global_exception_handler(request: Request, exc: Exception):
     print(f"GLOBAL EXCEPTION: {exc}", file=sys.stderr)
     raise exc
+
+def import_time():
+    """Return current timestamp in ISO format."""
+    return datetime.now().isoformat()

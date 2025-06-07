@@ -39,6 +39,7 @@ import {
     ZoomIn as ZoomIcon
 } from '@mui/icons-material';
 import { searchImages, getImageUrl, getSearchSuggestions, highlightSearchTerms, extractRelevantSnippet } from '../utils/imageSearchUtils';
+import { checkBackendStatus, BackendStatusIndicator } from '../utils/backendStatusUtils.jsx';
 import { useTranslate } from 'react-admin';
 import '../styles/imageHover.css';
 
@@ -77,6 +78,11 @@ const ImageSearchPage = () => {
     const [showFilters, setShowFilters] = useState(false);
     const [selectedImage, setSelectedImage] = useState(null);
     
+    // We'll use a simpler backend status state since most functionality is in the utility
+    const [backendStatus, setBackendStatus] = useState({
+        isOnline: false
+    });
+    
     // Filter state
     const [filters, setFilters] = useState({
         textType: 'all', // 'all', 'pdf', 'ocr'
@@ -103,6 +109,26 @@ const ImageSearchPage = () => {
 
         return () => clearTimeout(timer);
     }, [query]);
+    
+    // Simplified backend status check using our utility
+    const checkBackendStatusFn = useCallback(async () => {
+        const result = await checkBackendStatus();
+        setBackendStatus({ isOnline: result.isOnline });
+        
+        // Clear error if backend is back online
+        if (result.isOnline && error && error.includes('connection')) {
+            setError(null);
+        } else if (!result.isOnline) {
+            setError(result.message);
+        }
+        
+        return result.isOnline;
+    }, [error]);
+    
+    // Check backend status on component mount
+    useEffect(() => {
+        checkBackendStatusFn();
+    }, [checkBackendStatusFn]);
 
     // Perform search
     const handleSearch = useCallback(async (newSearch = false, page = 1) => {
@@ -124,6 +150,12 @@ const ImageSearchPage = () => {
                 include_snippets: true
             };
 
+            // Check backend status before search
+            const isBackendOnline = await checkBackendStatusFn();
+            if (!isBackendOnline) {
+                throw new Error("Backend server is not responding. Please check if the server is running.");
+            }
+            
             const data = await searchImages(query, searchFilters, resultsPerPage, offset);
             
             setResults(data.results || []);
@@ -779,6 +811,9 @@ const ImageSearchPage = () => {
 
     return (
         <Box sx={{ p: 2, maxWidth: 1400, mx: 'auto' }}> {/* Reduced padding */}
+            {/* Use our reusable BackendStatusIndicator component */}
+            <BackendStatusIndicator position="top-right" />
+            
             {/* Improved Header - Stacked layout to prevent text overlap */}
             <Box sx={{ mb: 2 }}>
                 <Typography variant="h5" component="h1" sx={{ mb: 0.5 }}>

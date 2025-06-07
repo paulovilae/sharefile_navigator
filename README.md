@@ -232,3 +232,48 @@ This project uses an innovative hybrid approach for workflow blocks:
 This approach combines the flexibility of dynamic block management with the performance and safety of static code execution.
 
 ---
+
+## Docker Setup
+
+We've simplified the Docker startup process with unified scripts that handle dependencies and configuration automatically:
+
+### On Windows (PowerShell):
+```powershell
+.\docker-run.ps1
+```
+
+### On Windows (Command Prompt):
+```cmd
+docker-run.bat
+```
+
+### On Linux/macOS:
+```bash
+chmod +x docker-run.sh
+./docker-run.sh
+```
+
+These scripts:
+1. Add any missing dependencies to `requirements.txt`
+2. Start the Docker containers with proper configuration
+3. Install dependencies directly in the running container
+4. Restart only the backend container to apply changes
+
+This approach is faster than rebuilding the entire container and ensures that future builds will include the necessary dependencies.
+
+For detailed Docker setup instructions, see [Docker Setup Guide](./README-docker-setup.md).
+
+## Troubleshooting
+
+---
+
+## Project Documentation
+
+For more detailed documentation, please refer to the README files in each directory:
+
+- [Backend Documentation](./backend/README.md) - Details about the FastAPI backend
+- [Frontend Documentation](./frontend/README.md) - Information about the React frontend
+- [Scripts Documentation](./scripts/README.md) - Utility scripts for testing and maintenance
+- [Memory Bank](./memory-bank/README.md) - Documentation of changes, fixes, and improvements
+
+---

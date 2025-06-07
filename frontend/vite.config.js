@@ -11,7 +11,7 @@ export default defineConfig({
   })],
   server: {
     proxy: {
-      '/api': `http://localhost:${process.env.VITE_BACKEND_PORT || 8000}`
+      '/api': `http://backend:${process.env.VITE_BACKEND_PORT || 8000}`
     }
   },
   optimizeDeps: {

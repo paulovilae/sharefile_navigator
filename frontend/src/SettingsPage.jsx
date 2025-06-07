@@ -8,6 +8,7 @@ import GenericFileEditor from './components/GenericFileEditor';
 import CacheManagement from './components/CacheManagement';
 import SharePointFilterSettings from './components/SharePointFilterSettings';
 import LocalizationSettings from './pages/LocalizationSettings';
+import DatabaseSettings from './components/DatabaseSettings';
 import { useTranslate } from 'react-admin';
 
 const themeOptions = [
@@ -82,6 +83,7 @@ const SettingsPage = () => {
         <Tab label={translate('settings.tab.general')} />
         <Tab label={translate('settings.tab.theme')} />
         <Tab label={translate('settings.tab.cache')} />
+        <Tab label={translate('settings.tab.database')} />
         <Tab label={translate('settings.tab.localizations')} />
         <Tab label={translate('settings.tab.menu_categories')} />
         <Tab label={translate('settings.tab.menu_items')} />
@@ -123,15 +125,18 @@ const SettingsPage = () => {
         <CacheManagement />
       )}
       {tab === 3 && (
-        <LocalizationSettings />
+        <DatabaseSettings />
       )}
       {tab === 4 && (
+        <LocalizationSettings />
+      )}
+      {tab === 5 && (
         <Box>
           <Typography variant="h6" sx={{ mb: 2 }}>{translate('settings.tab.menu_categories')}</Typography>
           <SidebarMenuCategoryEditor />
         </Box>
       )}
-      {tab === 5 && (
+      {tab === 6 && (
         <Box>
           <Typography variant="h6" sx={{ mb: 2 }}>{translate('settings.tab.menu_items')}</Typography>
           <SidebarMenuItemEditor />
