@@ -2,5 +2,8 @@
   "dependencies": {
     "@mui/x-data-grid": "^8.4.0",
     "file-saver": "^2.0.5"
+  },
+  "devDependencies": {
+    "@emotion/babel-plugin": "^11.13.5"
   }
 }
